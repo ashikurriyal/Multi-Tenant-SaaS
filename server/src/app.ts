@@ -5,6 +5,9 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import config from './config';
 import { prisma } from './lib/prisma';
+import globalErrorHandler from './middlewares/globalErrorHandler';
+import notFound from './middlewares/notFound';
+import router from './routes';
 
 const app = express();
 app.set('trust proxy', 1); // behind Render/Railway's proxy, so rate limits see the real client IP
@@ -23,5 +26,10 @@ app.get('/health', async (_req, res) => {
   await prisma.$queryRaw`SELECT 1`;
   res.json({ status: 'ok', db: 'ok' });
 });
+
+app.use('/api/v1', router);
+
+app.use(notFound);
+app.use(globalErrorHandler);
 
 export default app;
