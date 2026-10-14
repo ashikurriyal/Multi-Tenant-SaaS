@@ -1,0 +1,22 @@
+model Organization {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  stripeCustomerId String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  memberships   Membership[]
+  invitations   Invitation[]
+  subscription  Subscription?
+  invoices      Invoice[]
+  apiKeys       ApiKey[]
+  usageEvents   UsageEvent[]
+  usageCounters UsageCounter[]
+  usageRollups  UsageDailyRollup[]
+  mrrSnapshots  MrrSnapshot[]
+  auditLogs     AuditLog[]
+  emails        EmailOutbox[]
+
+  @@map("organizations")
+}

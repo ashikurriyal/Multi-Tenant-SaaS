@@ -1,0 +1,19 @@
+model UsageEvent {
+  id                 BigInt    @id @default(autoincrement())
+  organizationId     String
+  apiKeyId           String
+  metric             String // e.g. documents_processed
+  quantity           Int
+  idempotencyKey     String
+  occurredAt         DateTime
+  reportedToStripeAt DateTime?
+  createdAt          DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKey       ApiKey       @relation(fields: [apiKeyId], references: [id])
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, metric, occurredAt])
+  @@index([reportedToStripeAt])
+  @@map("usage_events")
+}

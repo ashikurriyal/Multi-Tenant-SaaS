@@ -1,0 +1,12 @@
+model MrrSnapshot {
+  day            DateTime @db.Date
+  organizationId String
+  planId         String
+  mrrCents       Int
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+
+  @@id([day, organizationId])
+  @@map("mrr_snapshots")
+}
