@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import app from './app';
 import config from './config';
+import { startJobs, stopJobs } from './jobs';
 import { prisma } from './lib/prisma';
 
 let server: Server;
@@ -12,10 +13,12 @@ async function main() {
   server = app.listen(config.port, () => {
     console.info(`LedgerFlow API listening on http://localhost:${config.port}`);
   });
+  startJobs();
 }
 
 function shutdown(signal: string) {
   console.info(`${signal} received, shutting down`);
+  stopJobs();
   server?.close(async () => {
     await prisma.$disconnect();
     process.exit(0);
