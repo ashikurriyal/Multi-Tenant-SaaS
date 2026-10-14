@@ -1,0 +1,348 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ======================= ENUMS =======================
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum PlatformRole {
+  USER
+  SUPER_ADMIN
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  BILLING
+  MEMBER
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  UNPAID
+  CANCELED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  UNCOLLECTIBLE
+  VOID
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ================= IDENTITY & TENANCY =================
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  password     String // bcrypt hash
+  status       UserStatus   @default(ACTIVE)
+  platformRole PlatformRole @default(USER)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  memberships   Membership[]
+  invitations   Invitation[]   @relation("InvitedBy")
+  refreshTokens RefreshToken[]
+  apiKeys       ApiKey[]       @relation("ApiKeyCreatedBy")
+  auditLogs     AuditLog[]     @relation("AuditActor")
+
+  @@map("users")
+}
+
+model Organization {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  stripeCustomerId String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  memberships   Membership[]
+  invitations   Invitation[]
+  subscription  Subscription?
+  invoices      Invoice[]
+  apiKeys       ApiKey[]
+  usageEvents   UsageEvent[]
+  usageCounters UsageCounter[]
+  usageRollups  UsageDailyRollup[]
+  mrrSnapshots  MrrSnapshot[]
+  auditLogs     AuditLog[]
+  emails        EmailOutbox[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  role           OrgRole
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@map("memberships")
+}
+
+model Invitation {
+  id             String    @id @default(uuid())
+  organizationId String
+  invitedById    String
+  email          String
+  role           OrgRole
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([organizationId, email])
+  @@map("invitations")
+}
+
+model RefreshToken {
+  id        String    @id // the JWT "jti" claim
+  userId    String
+  familyId  String // all rotations of one login share this
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+// ======================= BILLING =======================
+
+model Plan {
+  id                   String   @id @default(uuid())
+  code                 String   @unique // FREE | PRO | BUSINESS
+  name                 String
+  stripePriceId        String?  @unique // null for FREE
+  stripeMeteredPriceId String?  @unique // overage price
+  monthlyPriceCents    Int
+  seatLimit            Int
+  includedUnits        Int
+  overageUnitMicros    Int // $0.002 per unit = 2000
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  subscriptions Subscription[]
+  mrrSnapshots  MrrSnapshot[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  organizationId       String             @unique
+  planId               String
+  stripeSubscriptionId String?            @unique
+  status               SubscriptionStatus
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  trialEndsAt          DateTime?
+  graceEndsAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+  invoices     Invoice[]
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id               String        @id @default(uuid())
+  organizationId   String
+  subscriptionId   String?
+  stripeInvoiceId  String        @unique
+  status           InvoiceStatus
+  amountDueCents   Int
+  amountPaidCents  Int
+  currency         String        @default("usd")
+  periodStart      DateTime
+  periodEnd        DateTime
+  hostedInvoiceUrl String?
+  paidAt           DateTime?
+  createdAt        DateTime      @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([organizationId, periodStart])
+  @@map("invoices")
+}
+
+// Webhook inbox: the Stripe event id is the primary key (dedupe)
+model StripeEvent {
+  id            String             @id // evt_...
+  type          String
+  payload       Json
+  status        WebhookEventStatus @default(RECEIVED)
+  attempts      Int                @default(0)
+  nextAttemptAt DateTime?
+  lastError     String?
+  receivedAt    DateTime           @default(now())
+  processedAt   DateTime?
+  updatedAt     DateTime           @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@map("stripe_events")
+}
+
+// ======================== USAGE ========================
+
+model ApiKey {
+  id             String    @id @default(uuid())
+  organizationId String
+  createdById    String
+  name           String
+  prefix         String // first 12 chars, shown in UI
+  keyHash        String    @unique // sha256 of the full key
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ApiKeyCreatedBy", fields: [createdById], references: [id])
+  usageEvents  UsageEvent[]
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
+model UsageEvent {
+  id                 BigInt    @id @default(autoincrement())
+  organizationId     String
+  apiKeyId           String
+  metric             String // e.g. documents_processed
+  quantity           Int
+  idempotencyKey     String
+  occurredAt         DateTime
+  reportedToStripeAt DateTime?
+  createdAt          DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKey       ApiKey       @relation(fields: [apiKeyId], references: [id])
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, metric, occurredAt])
+  @@index([reportedToStripeAt])
+  @@map("usage_events")
+}
+
+// One row per org per billing period; incremented atomically to enforce limits
+model UsageCounter {
+  organizationId String
+  periodStart    DateTime
+  units          Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, periodStart])
+  @@map("usage_counters")
+}
+
+model UsageDailyRollup {
+  organizationId String
+  metric         String
+  day            DateTime @db.Date
+  quantity       Int
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, metric, day])
+  @@map("usage_daily_rollups")
+}
+
+// ================= ANALYTICS & OPERATIONS =================
+
+model MrrSnapshot {
+  day            DateTime @db.Date
+  organizationId String
+  planId         String
+  mrrCents       Int
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+
+  @@id([day, organizationId])
+  @@map("mrr_snapshots")
+}
+
+model AuditLog {
+  id             BigInt   @id @default(autoincrement())
+  organizationId String?
+  actorId        String? // null when the actor is Stripe or a system job
+  action         String // e.g. subscription.status_changed
+  entityType     String
+  entityId       String
+  before         Json?
+  after          Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?         @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@map("audit_logs")
+}
+
+model EmailOutbox {
+  id             String      @id @default(uuid())
+  organizationId String?
+  toEmail        String
+  template       String // e.g. payment_failed, invitation
+  data           Json
+  status         EmailStatus @default(PENDING)
+  attempts       Int         @default(0)
+  lastError      String?
+  sentAt         DateTime?
+  createdAt      DateTime    @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@map("email_outbox")
+}
