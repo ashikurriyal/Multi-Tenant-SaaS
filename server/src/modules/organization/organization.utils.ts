@@ -26,8 +26,9 @@ export const generateUniqueSlug = async (
   return `${base}-${crypto.randomUUID().slice(0, 8)}`;
 };
 
-export const addMonths = (date: Date, months: number) => {
-  const result = new Date(date);
-  result.setUTCMonth(result.getUTCMonth() + months);
-  return result;
+// Free plan periods are calendar months in UTC (SRS section 12.3)
+export const currentFreePeriod = (now = new Date()) => {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return { start, end };
 };
