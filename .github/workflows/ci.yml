@@ -25,7 +25,7 @@ jobs:
       # prisma generate (server postinstall) needs a value, not a live database
       DATABASE_URL: postgresql://user:pass@localhost:5432/ci
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -65,7 +65,7 @@ jobs:
       SUPER_ADMIN_PASSWORD: ci-password-123
       ENABLE_JOBS: 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
