@@ -13,7 +13,7 @@ out/
 !.env.example
 
 # prisma generated client
-server/src/generated/
+server/generated/
 
 # logs & os
 *.log

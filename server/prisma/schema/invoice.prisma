@@ -1,0 +1,21 @@
+model Invoice {
+  id               String        @id @default(uuid())
+  organizationId   String
+  subscriptionId   String?
+  stripeInvoiceId  String        @unique
+  status           InvoiceStatus
+  amountDueCents   Int
+  amountPaidCents  Int
+  currency         String        @default("usd")
+  periodStart      DateTime
+  periodEnd        DateTime
+  hostedInvoiceUrl String?
+  paidAt           DateTime?
+  createdAt        DateTime      @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([organizationId, periodStart])
+  @@map("invoices")
+}

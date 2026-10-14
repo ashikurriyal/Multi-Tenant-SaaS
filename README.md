@@ -25,13 +25,15 @@
 
 ## Getting started
 
-Requirements: Node.js 22+, PostgreSQL.
+Requirements: Node.js 22+ and a PostgreSQL database (we use [Prisma Postgres](https://www.prisma.io/postgres)).
 
 ```bash
 # API → http://localhost:5000
 cd server
-cp .env.example .env
-npm install
+cp .env.example .env      # set DATABASE_URL and SUPER_ADMIN_*
+npm install               # also generates the Prisma client
+npm run db:deploy         # apply migrations
+npm run db:seed           # plans + super admin
 npm run dev
 
 # Client → http://localhost:3000
@@ -51,6 +53,9 @@ The client proxies `/api/*` to the API through a Next.js rewrite, so the browser
 | `npm run build` | Compile to `dist/` | Production build |
 | `npm run lint` | ESLint | ESLint |
 | `npm run typecheck` | `tsc --noEmit` | `tsc --noEmit` |
+| `npm run db:migrate` | Create + apply a migration (dev) | |
+| `npm run db:seed` | Seed plans + super admin | |
+| `npm run db:studio` | Open Prisma Studio | |
 
 ## Git workflow
 
