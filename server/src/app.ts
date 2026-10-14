@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import config from './config';
+import passport from './lib/passport';
 import { prisma } from './lib/prisma';
 import globalErrorHandler from './middlewares/globalErrorHandler';
 import notFound from './middlewares/notFound';
@@ -21,6 +22,7 @@ app.use(morgan(config.isProd ? 'combined' : 'dev'));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(passport.initialize());
 
 app.get('/health', async (_req, res) => {
   await prisma.$queryRaw`SELECT 1`;
