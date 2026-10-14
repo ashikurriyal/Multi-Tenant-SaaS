@@ -10,7 +10,7 @@ import {
   signAccessToken,
   verifyRefreshToken,
 } from '../../utils/tokens';
-import { addMonths, generateUniqueSlug } from './auth.utils';
+import { createOrganizationWithOwner, withSlugRetry } from '../organization/organization.service';
 import type { TRegisterPayload } from './auth.validation';
 
 const emailTaken = () =>
@@ -21,41 +21,23 @@ const register = async (payload: TRegisterPayload) => {
   const existing = await prisma.user.findUnique({ where: { email: payload.email } });
   if (existing) throw emailTaken();
 
-  const freePlan = await prisma.plan.findUnique({ where: { code: 'FREE' } });
-  if (!freePlan) throw new Error('FREE plan is missing, run the seed');
-
   const password = await bcrypt.hash(payload.password, config.bcryptSaltRounds);
-  const slug = await generateUniqueSlug(payload.organizationName, async (candidate) =>
-    Boolean(await prisma.organization.findUnique({ where: { slug: candidate } })),
-  );
-  const now = new Date();
 
   try {
-    return await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: { name: payload.name, email: payload.email, password },
-        select: { id: true, name: true, email: true, platformRole: true },
-      });
-
-      const organization = await tx.organization.create({
-        data: {
-          name: payload.organizationName,
-          slug,
-          memberships: { create: { userId: user.id, role: 'OWNER' } },
-          subscription: {
-            create: {
-              planId: freePlan.id,
-              status: 'ACTIVE',
-              currentPeriodStart: now,
-              currentPeriodEnd: addMonths(now, 1),
-            },
-          },
-        },
-        select: { id: true, name: true, slug: true },
-      });
-
-      return { user, organization: { ...organization, role: 'OWNER' as const } };
-    });
+    return await withSlugRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: { name: payload.name, email: payload.email, password },
+          select: { id: true, name: true, email: true, platformRole: true },
+        });
+        const organization = await createOrganizationWithOwner(
+          tx,
+          user.id,
+          payload.organizationName,
+        );
+        return { user, organization };
+      }),
+    );
   } catch (err) {
     // Two sign-ups with the same email at the same moment: the unique index decides
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
