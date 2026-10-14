@@ -1,3 +1,4 @@
+import type { Prisma } from '../../generated/prisma/client';
 import { prisma } from '../lib/prisma';
 import { accessLevel, type AccessLevel } from './subscriptionState';
 
@@ -11,11 +12,18 @@ export type Entitlements = {
   overageAllowed: boolean;
 };
 
-// Pending = not accepted and not expired; they hold a seat until then
-export const countSeatsUsed = async (organizationId: string, now = new Date()) => {
+type TSeatClient = Pick<Prisma.TransactionClient, 'membership' | 'invitation'>;
+
+// Pending = not accepted and not expired; they hold a seat until then.
+// Pass a transaction client to count inside a locked transaction.
+export const countSeatsUsed = async (
+  organizationId: string,
+  now = new Date(),
+  db: TSeatClient = prisma,
+) => {
   const [members, pendingInvites] = await Promise.all([
-    prisma.membership.count({ where: { organizationId } }),
-    prisma.invitation.count({
+    db.membership.count({ where: { organizationId } }),
+    db.invitation.count({
       where: { organizationId, acceptedAt: null, expiresAt: { gt: now } },
     }),
   ]);

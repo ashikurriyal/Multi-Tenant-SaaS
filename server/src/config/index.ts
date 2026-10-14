@@ -13,11 +13,28 @@ const envSchema = z
     JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
     JWT_REFRESH_SECRET: z.string().min(32, 'must be at least 32 characters'),
     JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().default(587),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    MAIL_FROM: z.string().default('LedgerFlow <no-reply@ledgerflow.dev>'),
+    ENABLE_JOBS: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((v) => v === 'true'),
   })
   .refine((env) => env.JWT_ACCESS_SECRET !== env.JWT_REFRESH_SECRET, {
     message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different',
     path: ['JWT_REFRESH_SECRET'],
-  });
+  })
+  .refine(
+    (env) =>
+      env.NODE_ENV !== 'production' || Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS),
+    {
+      message: 'SMTP_HOST, SMTP_USER and SMTP_PASS are required in production',
+      path: ['SMTP_HOST'],
+    },
+  );
 
 const parsed = envSchema.safeParse(process.env);
 
@@ -41,6 +58,14 @@ const config = {
     refreshSecret: env.JWT_REFRESH_SECRET,
     refreshExpiresIn: env.JWT_REFRESH_EXPIRES_IN,
   },
+  mail: {
+    host: env.SMTP_HOST || undefined,
+    port: env.SMTP_PORT,
+    user: env.SMTP_USER || undefined,
+    pass: env.SMTP_PASS || undefined,
+    from: env.MAIL_FROM,
+  },
+  enableJobs: env.ENABLE_JOBS,
 } as const;
 
 export default config;

@@ -4,4 +4,9 @@ import config from '../config';
 
 const adapter = new PrismaPg({ connectionString: config.databaseUrl });
 
-export const prisma = new PrismaClient({ adapter });
+// The hosted database adds ~300ms per round trip, so allow interactive transactions
+// more than Prisma's default 5s before they are aborted
+export const prisma = new PrismaClient({
+  adapter,
+  transactionOptions: { maxWait: 5_000, timeout: 15_000 },
+});

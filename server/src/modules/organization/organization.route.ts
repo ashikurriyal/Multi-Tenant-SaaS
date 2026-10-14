@@ -3,6 +3,7 @@ import { auth } from '../../middlewares/auth';
 import requireOrgMember from '../../middlewares/requireOrgMember';
 import requirePermission from '../../middlewares/requirePermission';
 import validateRequest from '../../middlewares/validateRequest';
+import { OrgInvitationRoutes } from '../invitation/invitation.route';
 import { MemberRoutes } from '../member/member.route';
 import { OrganizationController } from './organization.controller';
 import { OrganizationValidation } from './organization.validation';
@@ -28,5 +29,12 @@ router.patch(
 
 // Every nested /orgs/:orgId/* router is guarded once here
 router.use('/:orgId/members', auth, requireOrgMember, MemberRoutes);
+router.use(
+  '/:orgId/invitations',
+  auth,
+  requireOrgMember,
+  requirePermission('members:manage'),
+  OrgInvitationRoutes,
+);
 
 export const OrganizationRoutes = router;
