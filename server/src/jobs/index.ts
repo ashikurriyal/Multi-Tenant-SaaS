@@ -1,10 +1,7 @@
 import cron from 'node-cron';
 import config from '../config';
 import { mailDelivery } from '../lib/mailer';
-import { sendEmails } from './sendEmails';
-
-// SRS section 13 — every job is idempotent and safe to run twice
-const jobs = [{ name: 'send-emails', schedule: '* * * * *', run: sendEmails }];
+import { jobs } from './registry';
 
 export function startJobs() {
   if (!config.enableJobs) {

@@ -6,14 +6,17 @@ import config from '../config';
 import AppError from '../errors/AppError';
 import { prisma } from './prisma';
 
-// Compared against when the email is unknown, so both failure cases take the same time
-const DUMMY_HASH = bcrypt.hashSync('timing-attack-guard', config.bcryptSaltRounds);
+// Compared against when the email is unknown, so both failure cases take the same time.
+// Created on first use instead of at startup, to keep serverless cold starts short.
+let dummyHash: Promise<string> | null = null;
+const getDummyHash = () =>
+  (dummyHash ??= bcrypt.hash('timing-attack-guard', config.bcryptSaltRounds));
 
 passport.use(
   new LocalStrategy({ usernameField: 'email', session: false }, async (email, password, done) => {
     try {
       const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-      const valid = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
+      const valid = await bcrypt.compare(password, user?.password ?? (await getDummyHash()));
       if (!user || !valid) return done(null, false);
 
       if (user.status === 'BLOCKED') {
