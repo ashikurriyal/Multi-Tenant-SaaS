@@ -24,7 +24,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">
+      {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen) add attributes to <body>
+          before React loads. This ignores attribute differences on <body> itself only;
+          mismatches inside the page are still reported. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {/* Redux creates a random id when the store starts; with Cache Components that must
             happen per request, so the store-backed tree streams inside this boundary */}
         <Suspense fallback={null}>
