@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import AuthBootstrap from "@/components/AuthBootstrap";
+import { Toaster } from "@/components/ui/sonner";
+import StoreProvider from "@/redux/StoreProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,11 +23,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col">
+        {/* Redux creates a random id when the store starts; with Cache Components that must
+            happen per request, so the store-backed tree streams inside this boundary */}
+        <Suspense fallback={null}>
+          <StoreProvider>
+            <AuthBootstrap />
+            {children}
+            <Toaster richColors position="top-right" />
+          </StoreProvider>
+        </Suspense>
+      </body>
     </html>
   );
 }
