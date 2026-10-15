@@ -13,7 +13,7 @@ import { setCredentials } from "@/redux/features/authSlice";
 import { useAppDispatch } from "@/redux/hooks";
 import { loginSchema, type LoginValues } from "@/schemas/auth";
 import AuthChecking from "./AuthChecking";
-import FormField from "./FormField";
+import FormField from "@/components/forms/FormField";
 
 export default function LoginForm() {
   const dispatch = useAppDispatch();

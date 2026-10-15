@@ -9,6 +9,35 @@ const toSlug = (name: string) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 50) || 'org';
 
+// Organization slugs are the first URL segment of the app (/{slug}/dashboard), so they
+// must never equal a top-level client route
+const RESERVED_SLUGS = new Set([
+  'about',
+  'account',
+  'admin',
+  'api',
+  'app',
+  'assets',
+  'billing',
+  'dashboard',
+  'docs',
+  'help',
+  'invitations',
+  'invite',
+  'login',
+  'logout',
+  'onboarding',
+  'organizations',
+  'pricing',
+  'privacy',
+  'public',
+  'register',
+  'settings',
+  'signup',
+  'static',
+  'terms',
+]);
+
 const randomSuffix = () => crypto.randomBytes(3).toString('base64url').toLowerCase().slice(0, 4);
 
 // "Acme Inc" → "acme-inc", or "acme-inc-x7k2" when taken
@@ -17,7 +46,7 @@ export const generateUniqueSlug = async (
   isTaken: (slug: string) => Promise<boolean>,
 ) => {
   const base = toSlug(name);
-  if (!(await isTaken(base))) return base;
+  if (!RESERVED_SLUGS.has(base) && !(await isTaken(base))) return base;
 
   for (let i = 0; i < 5; i++) {
     const candidate = `${base}-${randomSuffix()}`;

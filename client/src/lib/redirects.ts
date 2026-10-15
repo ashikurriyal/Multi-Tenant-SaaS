@@ -8,10 +8,12 @@ export function safeNextPath(next: string | null | undefined): string | null {
   return next;
 }
 
+export const orgHomePath = (slug: string) => `/${slug}/dashboard`;
+
 // Where a logged-in user lands when there is no ?next=
 export function homePathFor(me: Pick<Me, "memberships">): string {
   const first = me.memberships[0];
-  return first ? `/${first.organization.slug}/dashboard` : "/";
+  return first ? orgHomePath(first.organization.slug) : "/onboarding";
 }
 
 export const loginPathWithNext = (pathname: string) =>
