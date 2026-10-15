@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,7 +15,7 @@ import { setCredentials } from "@/redux/features/authSlice";
 import { useAppDispatch } from "@/redux/hooks";
 import { registerSchema, type RegisterValues } from "@/schemas/auth";
 import AuthChecking from "./AuthChecking";
-import FormField from "./FormField";
+import FormField from "@/components/forms/FormField";
 
 const FIELDS = ["name", "email", "password", "organizationName"] as const;
 
@@ -29,7 +30,11 @@ export default function RegisterForm() {
     handleSubmit,
     setError,
     formState: { errors },
-  } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterValues>({
+    resolver: zodResolver(registerSchema),
+    // Prefilled when coming from an invitation (/register?email=…)
+    defaultValues: { email: useSearchParams().get("email") ?? "" },
+  });
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
