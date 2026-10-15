@@ -28,7 +28,7 @@
 Requirements: Node.js 22+ and a PostgreSQL database (we use [Prisma Postgres](https://www.prisma.io/postgres)).
 
 ```bash
-# API → http://localhost:5000
+# API → http://localhost:5050 (not 5000: macOS AirPlay Receiver uses that port)
 cd server
 cp .env.example .env      # set DATABASE_URL and SUPER_ADMIN_*
 npm install               # also generates the Prisma client
