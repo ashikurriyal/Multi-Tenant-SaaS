@@ -1,0 +1,17 @@
+model EmailOutbox {
+  id             String      @id @default(uuid())
+  organizationId String?
+  toEmail        String
+  template       String // e.g. payment_failed, invitation
+  data           Json
+  status         EmailStatus @default(PENDING)
+  attempts       Int         @default(0)
+  lastError      String?
+  sentAt         DateTime?
+  createdAt      DateTime    @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@map("email_outbox")
+}

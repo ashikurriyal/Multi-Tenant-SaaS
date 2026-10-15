@@ -1,0 +1,11 @@
+model UsageDailyRollup {
+  organizationId String
+  metric         String
+  day            DateTime @db.Date
+  quantity       Int
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, metric, day])
+  @@map("usage_daily_rollups")
+}

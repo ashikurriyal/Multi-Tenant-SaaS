@@ -1,0 +1,14 @@
+model RefreshToken {
+  id        String    @id // the JWT "jti" claim
+  userId    String
+  familyId  String // all rotations of one login share this
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}

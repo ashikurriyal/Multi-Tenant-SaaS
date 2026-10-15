@@ -1,0 +1,18 @@
+model ApiKey {
+  id             String    @id @default(uuid())
+  organizationId String
+  createdById    String
+  name           String
+  prefix         String // first 12 chars, shown in UI
+  keyHash        String    @unique // sha256 of the full key
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ApiKeyCreatedBy", fields: [createdById], references: [id])
+  usageEvents  UsageEvent[]
+
+  @@index([organizationId])
+  @@map("api_keys")
+}

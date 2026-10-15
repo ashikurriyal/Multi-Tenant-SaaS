@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+
+# A newer push to the same branch cancels the run that is still going
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [server, client]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    env:
+      # prisma generate (server postinstall) needs a value, not a live database
+      DATABASE_URL: postgresql://user:pass@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  integration:
+    name: integration (server)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ledgerflow_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ledgerflow_ci
+      BCRYPT_SALT_ROUNDS: 10
+      JWT_ACCESS_SECRET: ci-access-secret-not-used-anywhere-else-0001
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-used-anywhere-else-0002
+      SUPER_ADMIN_EMAIL: admin@ledgerflow.ci
+      SUPER_ADMIN_PASSWORD: ci-password-123
+      ENABLE_JOBS: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+      - name: Seed plans and super admin
+        run: npm run db:seed
+      - name: Verify tenant isolation and RBAC
+        run: npm run verify:tenancy

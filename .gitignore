@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# env (keep the examples)
+.env
+.env.*
+!.env.example
+
+# prisma generated client
+server/generated/
+
+# logs & os
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/

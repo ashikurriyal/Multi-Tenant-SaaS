@@ -1,0 +1,18 @@
+model Plan {
+  id                   String   @id @default(uuid())
+  code                 String   @unique // FREE | PRO | BUSINESS
+  name                 String
+  stripePriceId        String?  @unique // null for FREE
+  stripeMeteredPriceId String?  @unique // overage price
+  monthlyPriceCents    Int
+  seatLimit            Int
+  includedUnits        Int
+  overageUnitMicros    Int // $0.002 per unit = 2000
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  subscriptions Subscription[]
+  mrrSnapshots  MrrSnapshot[]
+
+  @@map("plans")
+}

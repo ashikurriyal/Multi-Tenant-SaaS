@@ -1,0 +1,18 @@
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  password     String // bcrypt hash
+  status       UserStatus   @default(ACTIVE)
+  platformRole PlatformRole @default(USER)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  memberships   Membership[]
+  invitations   Invitation[]   @relation("InvitedBy")
+  refreshTokens RefreshToken[]
+  apiKeys       ApiKey[]       @relation("ApiKeyCreatedBy")
+  auditLogs     AuditLog[]     @relation("AuditActor")
+
+  @@map("users")
+}

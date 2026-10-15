@@ -1,0 +1,10 @@
+// Fixed-window counters for express-rate-limit, shared by every server instance
+// (Vercel runs several, so in-memory counters would each see only part of the traffic)
+model RateLimit {
+  key     String   @id // e.g. auth:203.0.113.7
+  hits    Int
+  resetAt DateTime
+
+  @@index([resetAt])
+  @@map("rate_limits")
+}
