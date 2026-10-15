@@ -58,6 +58,10 @@ The client proxies `/api/*` to the API through a Next.js rewrite, so the browser
 | `npm run db:studio` | Open Prisma Studio | |
 | `npm run verify:tenancy` | Check tenant isolation + RBAC against the database (creates and removes its own test data) | |
 
+## Deployment
+
+Website and API on Vercel, database on Prisma Postgres, all on free plans. Background jobs are secret-protected routes called by a GitHub Actions schedule. See [docs/deployment.md](docs/deployment.md).
+
 ## Git workflow
 
 - `main`: deployable

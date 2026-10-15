@@ -11,7 +11,8 @@ import notFound from './middlewares/notFound';
 import router from './routes';
 
 const app = express();
-app.set('trust proxy', 1); // behind Render/Railway's proxy, so rate limits see the real client IP
+// Behind proxies (Vercel, the Next.js rewrite), so rate limits and logs see the client IP
+app.set('trust proxy', config.trustProxy);
 
 app.use(helmet());
 app.use(cors({ origin: config.clientUrl, credentials: true }));

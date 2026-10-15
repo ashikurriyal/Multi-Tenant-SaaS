@@ -1,0 +1,35 @@
+name: Scheduled jobs
+
+# The API runs on Vercel, where nothing stays running between requests, so in-process
+# timers (node-cron) never fire. This workflow is the timer: it calls the API's
+# secret-protected job routes. Free for public repositories.
+#
+# Setup (Settings → Secrets and variables → Actions):
+#   Variables → API_BASE_URL = https://<your-api>.vercel.app   (no trailing slash)
+#   Secrets   → CRON_SECRET  = same value as CRON_SECRET in the API's Vercel project
+# Until API_BASE_URL exists, the job is skipped.
+
+on:
+  schedule:
+    # GitHub may start scheduled runs a few minutes late; every job is safe to run twice
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled-jobs
+  cancel-in-progress: false
+
+jobs:
+  send-emails:
+    if: ${{ vars.API_BASE_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run send-emails
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
+            -X POST -H "Authorization: Bearer $CRON_SECRET" \
+            "$API_BASE_URL/api/v1/internal/jobs/send-emails"

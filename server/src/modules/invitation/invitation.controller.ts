@@ -1,4 +1,6 @@
 import httpStatus from 'http-status';
+import { sendEmails } from '../../jobs/sendEmails';
+import { runInBackground } from '../../lib/background';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { InvitationService } from './invitation.service';
@@ -22,6 +24,8 @@ const createInvitation = catchAsync(async (req, res) => {
     message: 'Invitation sent',
     data: result,
   });
+  // Deliver now instead of waiting for the next scheduled run
+  runInBackground('send-emails', sendEmails);
 });
 
 const revokeInvitation = catchAsync(async (req, res) => {

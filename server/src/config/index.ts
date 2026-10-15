@@ -22,10 +22,22 @@ const envSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((v) => v === 'true'),
+    // Bearer secret for /api/v1/internal/jobs/* (Vercel Cron, GitHub scheduler)
+    // An empty value (as in .env.example) means "not set"
+    CRON_SECRET: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(32, 'must be at least 32 characters').optional(),
+    ),
+    // Proxies in front of the API whose X-Forwarded-For is trusted (Express "trust proxy")
+    TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   })
   .refine((env) => env.JWT_ACCESS_SECRET !== env.JWT_REFRESH_SECRET, {
     message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different',
     path: ['JWT_REFRESH_SECRET'],
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || Boolean(env.CRON_SECRET), {
+    message: 'CRON_SECRET is required in production (scheduled jobs call the API with it)',
+    path: ['CRON_SECRET'],
   })
   .refine(
     (env) =>
@@ -66,6 +78,8 @@ const config = {
     from: env.MAIL_FROM,
   },
   enableJobs: env.ENABLE_JOBS,
+  cronSecret: env.CRON_SECRET,
+  trustProxy: env.TRUST_PROXY,
 } as const;
 
 export default config;
