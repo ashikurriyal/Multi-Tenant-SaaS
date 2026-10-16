@@ -3,6 +3,7 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useActiveOrg } from "@/hooks/useActiveOrg";
+import BillingStatusBanner from "@/components/billing/BillingStatusBanner";
 import AppSidebar from "./AppSidebar";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
           <span className="truncate text-sm font-medium">{org?.name}</span>
         </header>
-        <div className="flex-1 p-4 md:p-8">{children}</div>
+        <div className="flex-1 p-4 md:p-8">
+          <BillingStatusBanner />
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

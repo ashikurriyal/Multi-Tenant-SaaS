@@ -89,3 +89,51 @@ export type PublicInvitation = {
   organization: { name: string };
   invitedBy: string;
 };
+
+export type Plan = {
+  code: "FREE" | "PRO" | "BUSINESS";
+  name: string;
+  monthlyPriceCents: number;
+  seatLimit: number;
+  includedUnits: number;
+  overageUnitMicros: number;
+};
+
+export type SubscriptionStatus =
+  "INCOMPLETE" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "UNPAID" | "CANCELED";
+
+export type BillingSubscription = {
+  plan: Plan;
+  status: SubscriptionStatus;
+  accessLevel: "FULL" | "FREE";
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  trialEndsAt: string | null;
+  graceEndsAt: string | null;
+  isPaidPlan: boolean;
+  hasBillingAccount: boolean;
+};
+
+export type PlanChangePreview = {
+  currentPlan: { code: string; name: string };
+  targetPlan: { code: string; name: string; monthlyPriceCents: number };
+  isUpgrade: boolean;
+  amountDueNowCents: number;
+  currency: string;
+  nextMonthlyCents: number;
+  prorationDate: number;
+};
+
+export type Invoice = {
+  id: string;
+  status: "DRAFT" | "OPEN" | "PAID" | "UNCOLLECTIBLE" | "VOID";
+  amountDueCents: number;
+  amountPaidCents: number;
+  currency: string;
+  periodStart: string;
+  periodEnd: string;
+  paidAt: string | null;
+  hostedInvoiceUrl: string | null;
+  createdAt: string;
+};
