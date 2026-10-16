@@ -514,12 +514,12 @@ Only an Owner may grant or remove the Owner role.
 | ID | Requirement |
 | --- | --- |
 | FR-BILL-01 | `GET /orgs/:orgId/billing/subscription` must return plan, status, period dates, `cancelAtPeriodEnd`, `graceEndsAt` and access level. |
-| FR-BILL-02 | `POST /billing/checkout-session` with `planCode` must: create the Stripe Customer if the organization has none (save `stripeCustomerId`); create a Checkout Session in `subscription` mode with the plan's flat price and metered overage price; put `organizationId` in session and subscription `metadata`; return the Checkout URL. It is only allowed when the organization has no active paid subscription (`409 ALREADY_SUBSCRIBED` otherwise). |
+| FR-BILL-02 | `POST /billing/checkout-session` with `planCode` (`PRO` or `BUSINESS`) must: create the Stripe Customer if the organization has none and save `stripeCustomerId` **immediately** (so abandoned checkouts never create duplicate customers; the create call uses the idempotency key `ledgerflow-customer-<orgId>` and only organization data, so simultaneous clicks get the same customer); create a Checkout Session in `subscription` mode with the plan's flat price (quantity 1) and metered overage price; put `organizationId` and `planCode` in session and subscription `metadata` and `client_reference_id`; return the Checkout URL. It is only allowed when the organization holds no paid subscription (`INCOMPLETE`, `TRIALING`, `ACTIVE`, `PAST_DUE` or `UNPAID` with a `stripeSubscriptionId` → `409 ALREADY_SUBSCRIBED`). A plan without Stripe prices → `503 BILLING_NOT_CONFIGURED`. |
 | FR-BILL-03 | The success page must **not** activate anything. The client polls `GET /billing/subscription` until status becomes `ACTIVE` or `TRIALING` (stop after 30 seconds). |
 | FR-BILL-04 | `POST /billing/change-plan/preview` must return the prorated amount due now and the next invoice total, using Stripe's invoice preview. |
 | FR-BILL-05 | `POST /billing/change-plan` must update the Stripe subscription's price with proration. It must accept an `Idempotency-Key` header and pass it to Stripe. The local database changes only when the resulting webhook arrives. |
 | FR-BILL-06 | Downgrading must be refused with `409 SEATS_EXCEED_TARGET_PLAN` if the organization has more members than the target plan allows. |
-| FR-BILL-07 | `POST /billing/portal-session` must return a Stripe Customer Portal URL (update card, cancel, download invoices). |
+| FR-BILL-07 | `POST /billing/portal-session` must return a Stripe Customer Portal URL (update card, update billing email and address, download invoices, cancel at period end). The portal configuration is created by `npm run stripe:setup`; plan changes are **not** offered there, because they go through FR-BILL-04…06 (preview and seat checks). Without a Stripe customer → `409 NO_BILLING_ACCOUNT`. |
 | FR-BILL-08 | `GET /billing/invoices` must list invoices newest first with amount, status, period and Stripe-hosted invoice URL. |
 | FR-BILL-09 | Every billing change must write an audit log entry (actor = user for requests, `null` for Stripe-driven changes). |
 
@@ -646,11 +646,14 @@ Only an Owner may grant or remove the Owner role.
 | 409 | `LAST_OWNER` | Would remove or demote the last Owner |
 | 409 | `ALREADY_SUBSCRIBED` | Checkout requested while a paid subscription is active |
 | 409 | `SEATS_EXCEED_TARGET_PLAN` | Downgrade target has fewer seats than current members |
+| 409 | `NO_BILLING_ACCOUNT` | Customer Portal requested before the organization's first checkout |
 | 410 | `INVITE_EXPIRED` | Invitation expired or already used |
 | 410 | `TOKEN_EXPIRED` | Verification or password-reset link unknown, expired or already used |
 | 429 | `PLAN_LIMIT_USAGE` | Free-plan usage limit reached |
 | 429 | `RATE_LIMITED` | Too many requests |
 | 500 | `INTERNAL_ERROR` | Unexpected error (details logged, not returned) |
+| 502 | `PAYMENT_PROVIDER_ERROR` | A Stripe API call failed (Stripe's message is logged with its request id, not returned) |
+| 503 | `BILLING_NOT_CONFIGURED` | The plan has no Stripe prices yet (`npm run stripe:setup` not run) |
 
 Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 404, `P2003` (foreign key) → 400.
 
@@ -829,13 +832,17 @@ No body. The browser sends the cookie automatically.
   "statusCode": 200,
   "message": "Subscription retrieved successfully",
   "data": {
-    "plan": { "code": "PRO", "name": "Pro", "monthlyPriceCents": 4900 },
+    "plan": { "code": "PRO", "name": "Pro", "monthlyPriceCents": 4900, "seatLimit": 10,
+              "includedUnits": 50000, "overageUnitMicros": 2000 },
     "status": "PAST_DUE",
     "accessLevel": "FULL",
     "currentPeriodStart": "2026-10-01T00:00:00.000Z",
     "currentPeriodEnd": "2026-11-01T00:00:00.000Z",
     "cancelAtPeriodEnd": false,
-    "graceEndsAt": "2026-10-12T00:00:00.000Z"
+    "trialEndsAt": null,
+    "graceEndsAt": "2026-10-12T00:00:00.000Z",
+    "isPaidPlan": true,
+    "hasBillingAccount": true
   }
 }
 ```
@@ -845,12 +852,14 @@ No body. The browser sends the cookie automatically.
 ```json
 // Request
 { "planCode": "PRO" }
-// Response 200
-{ "success": true, "statusCode": 200, "message": "Checkout session created",
+// Response 201
+{ "success": true, "statusCode": 201, "message": "Checkout session created",
   "data": { "url": "https://checkout.stripe.com/c/pay/cs_test_…" } }
 ```
 
-The client does `window.location.href = data.url`.
+The client does `window.location.href = data.url`. Stripe sends the user back to `/<orgSlug>/billing?checkout=success` (or `?checkout=canceled`); the subscription changes only when the webhook arrives (FR-BILL-03).
+
+`POST /api/v1/orgs/:orgId/billing/portal-session` answers the same way with a `https://billing.stripe.com/…` URL, or `409 NO_BILLING_ACCOUNT` before the first checkout.
 
 #### 22. Change-plan preview — `POST /api/v1/orgs/:orgId/billing/change-plan/preview`
 
@@ -2429,7 +2438,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 ### Phase 2 — Stripe billing (weeks 3–4)
 
 - [x] Script to create Stripe Products/Prices and a Billing Meter; plans linked to their ids (`npm run stripe:setup`)
-- [ ] Checkout session, Customer Portal session, success-page polling
+- [x] Checkout session, Customer Portal session (server); success-page polling comes with the billing page
 - [ ] Webhook receiver (raw body, signature, inbox) and processor (claim, re-fetch, transaction)
 - [ ] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
 - [ ] Change-plan preview and apply (with Idempotency-Key); invoices list; billing page

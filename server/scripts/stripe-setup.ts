@@ -2,6 +2,7 @@
  * Creates (or finds) everything LedgerFlow needs in Stripe and links it to the plans table:
  *   - a Billing Meter for usage (event name STRIPE_METER_EVENT_NAME)
  *   - per paid plan: a Product, a flat monthly Price and a metered overage Price
+ *   - the Customer Portal configuration (update card, invoices, cancel at period end)
  * The overage price is graduated: the plan's included units cost 0, the rest cost the
  * overage rate. So every usage event can be reported and Stripe bills only the excess.
  *
@@ -12,7 +13,7 @@
  */
 import config from '../src/config';
 import { prisma } from '../src/lib/prisma';
-import { getStripe, Stripe } from '../src/lib/stripe';
+import { getStripe, PORTAL_CONFIG_METADATA, Stripe } from '../src/lib/stripe';
 
 const CURRENCY = 'usd';
 
@@ -91,6 +92,36 @@ async function ensureProduct(plan: { code: string; name: string }, existing?: St
   return product.id;
 }
 
+// FR-BILL-07. Plan changes go through LedgerFlow (preview + seat checks), not the portal
+const portalFeatures: Stripe.BillingPortal.ConfigurationCreateParams.Features = {
+  payment_method_update: { enabled: true },
+  invoice_history: { enabled: true },
+  customer_update: { enabled: true, allowed_updates: ['email', 'name', 'address'] },
+  subscription_cancel: { enabled: true, mode: 'at_period_end', proration_behavior: 'none' },
+  subscription_update: { enabled: false },
+};
+
+async function ensurePortalConfiguration() {
+  for await (const configuration of stripe.billingPortal.configurations.list({
+    active: true,
+    limit: 100,
+  })) {
+    if (configuration.metadata?.ledgerflow === PORTAL_CONFIG_METADATA.ledgerflow) {
+      await stripe.billingPortal.configurations.update(configuration.id, {
+        features: portalFeatures,
+      });
+      return { id: configuration.id, created: false };
+    }
+  }
+  const configuration = await stripe.billingPortal.configurations.create({
+    name: 'LedgerFlow',
+    business_profile: { headline: 'Manage your LedgerFlow billing' },
+    features: portalFeatures,
+    metadata: PORTAL_CONFIG_METADATA,
+  });
+  return { id: configuration.id, created: true };
+}
+
 async function main() {
   const account = await stripe.accounts.retrieveCurrent();
   console.info(
@@ -162,6 +193,9 @@ async function main() {
     );
   }
   console.info('Plans table updated with Stripe price ids.');
+
+  const portal = await ensurePortalConfiguration();
+  console.info(`Customer Portal: ${portal.created ? 'created' : 'updated'} (${portal.id})`);
 }
 
 main()

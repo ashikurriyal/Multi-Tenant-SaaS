@@ -2,6 +2,7 @@ import type { ErrorRequestHandler } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
 import { Prisma } from '../../generated/prisma/client';
+import { Stripe } from '../lib/stripe';
 import config from '../config';
 import AppError from '../errors/AppError';
 import handleZodError from '../errors/handleZodError';
@@ -22,6 +23,16 @@ const toErrorResponse = (err: unknown): TGenericErrorResponse => {
   if (err instanceof Prisma.PrismaClientKnownRequestError) return handlePrismaKnownError(err);
   if (err instanceof Prisma.PrismaClientValidationError) return handlePrismaValidationError();
   if (err instanceof Prisma.PrismaClientInitializationError) return handlePrismaInitError();
+
+  // Stripe's own message can mention ids and internals: log it, answer generically
+  if (err instanceof Stripe.errors.StripeError) {
+    return {
+      statusCode: httpStatus.BAD_GATEWAY,
+      message: 'The payment provider could not complete the request. Please try again.',
+      errorCode: 'PAYMENT_PROVIDER_ERROR',
+      errorDetails: [],
+    };
+  }
 
   if (err instanceof AppError) {
     return {
@@ -63,8 +74,13 @@ const toErrorResponse = (err: unknown): TGenericErrorResponse => {
 const globalErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   const response = toErrorResponse(err);
 
-  // Unexpected errors are logged once here, never sent to the client
-  if (response.statusCode >= 500) console.error(err);
+  // Unexpected errors are logged once here, never sent to the client. Stripe errors carry
+  // their whole HTTP exchange, so log the useful part (type, message, Stripe request id)
+  if (err instanceof Stripe.errors.StripeError) {
+    console.error(`[stripe] ${err.type}: ${err.message} (request ${err.requestId ?? 'n/a'})`);
+  } else if (response.statusCode >= 500) {
+    console.error(err);
+  }
 
   res.status(response.statusCode).json({
     success: false,

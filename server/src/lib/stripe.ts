@@ -23,4 +23,23 @@ export function getStripe(): Stripe {
   return client;
 }
 
+// The Customer Portal configuration created by `npm run stripe:setup` (found by metadata)
+export const PORTAL_CONFIG_METADATA = { ledgerflow: 'customer-portal' } as const;
+
+let portalConfigurationId: string | null = null;
+
+export async function getPortalConfigurationId(): Promise<string> {
+  if (portalConfigurationId) return portalConfigurationId;
+  for await (const configuration of getStripe().billingPortal.configurations.list({
+    active: true,
+    limit: 100,
+  })) {
+    if (configuration.metadata?.ledgerflow === PORTAL_CONFIG_METADATA.ledgerflow) {
+      portalConfigurationId = configuration.id;
+      return configuration.id;
+    }
+  }
+  throw new Error('Customer Portal is not configured: run `npm run stripe:setup`');
+}
+
 export { Stripe };
