@@ -1,18 +1,21 @@
 model User {
-  id           String       @id @default(uuid())
-  name         String
-  email        String       @unique
-  password     String // bcrypt hash
-  status       UserStatus   @default(ACTIVE)
-  platformRole PlatformRole @default(USER)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String       @id @default(uuid())
+  name            String
+  email           String       @unique
+  password        String // bcrypt hash
+  status          UserStatus   @default(ACTIVE)
+  platformRole    PlatformRole @default(USER)
+  // null until the user proves they own the address; login is refused until then
+  emailVerifiedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   memberships   Membership[]
   invitations   Invitation[]   @relation("InvitedBy")
   refreshTokens RefreshToken[]
   apiKeys       ApiKey[]       @relation("ApiKeyCreatedBy")
   auditLogs     AuditLog[]     @relation("AuditActor")
+  emailTokens   EmailToken[]
 
   @@map("users")
 }

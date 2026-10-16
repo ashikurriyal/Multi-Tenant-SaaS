@@ -61,8 +61,15 @@ async function seedSuperAdmin() {
   // Existing password is kept, so re-running the seed never resets it
   await prisma.user.upsert({
     where: { email },
-    update: { platformRole: 'SUPER_ADMIN' },
-    create: { name: 'Super Admin', email, password: hash, platformRole: 'SUPER_ADMIN' },
+    // Seeded accounts are trusted: no verification email needed
+    update: { platformRole: 'SUPER_ADMIN', emailVerifiedAt: new Date() },
+    create: {
+      name: 'Super Admin',
+      email,
+      password: hash,
+      platformRole: 'SUPER_ADMIN',
+      emailVerifiedAt: new Date(),
+    },
   });
   console.info(`Super admin: ${email}`);
 }

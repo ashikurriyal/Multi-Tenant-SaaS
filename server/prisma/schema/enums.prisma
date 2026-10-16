@@ -44,3 +44,8 @@ enum EmailStatus {
   SENT
   FAILED
 }
+
+enum EmailTokenPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}

@@ -62,6 +62,11 @@ async function verifyPrismaScoping() {
     password: 'password123',
     organizationName: `Verify B ${RUN}`,
   });
+  // New accounts start unverified (FR-AUTH-12); these test users act as verified ones
+  await prisma.user.updateMany({
+    where: { email: { endsWith: EMAIL_DOMAIN } },
+    data: { emailVerifiedAt: new Date() },
+  });
   const A = a.organization.id;
   const B = b.organization.id;
   const db = tenantPrisma(A);

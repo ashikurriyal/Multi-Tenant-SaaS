@@ -1,0 +1,17 @@
+// One-time links sent by email (verify address, reset password). Only the SHA-256 of
+// the token is stored; the raw value exists only in the email
+model EmailToken {
+  id        String            @id @default(uuid())
+  userId    String
+  purpose   EmailTokenPurpose
+  tokenHash String            @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("email_tokens")
+}

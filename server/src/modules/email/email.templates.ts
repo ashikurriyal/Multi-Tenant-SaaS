@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// FR-MAIL-02 — payment templates are added with billing (Phase 2)
+// FR-MAIL-02 — payment templates are added with billing (Phase 2); FR-AUTH-12..16 for links
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 const invitationData = z.object({
@@ -11,7 +11,30 @@ const invitationData = z.object({
   expiresAt: z.string(),
 });
 
+const linkData = z.object({ name: z.string(), link: z.string(), expiresAt: z.string() });
+
 const templates = {
+  verify_email: (raw: unknown) => {
+    const d = linkData.parse(raw);
+    const name = escapeHtml(d.name);
+    const expires = new Date(d.expiresAt).toUTCString();
+    return {
+      subject: 'Verify your email for LedgerFlow',
+      text: `Hi ${d.name},\n\nConfirm your email address to start using LedgerFlow: ${d.link}\n\nThis link expires on ${expires}. If you didn't create an account, you can ignore this email.`,
+      html: `<p>Hi ${name},</p><p>Confirm your email address to start using LedgerFlow.</p><p><a href="${escapeHtml(d.link)}">Verify email</a></p><p style="color:#666">This link expires on ${expires}. If you didn't create an account, you can ignore this email.</p>`,
+    };
+  },
+  reset_password: (raw: unknown) => {
+    const d = linkData.parse(raw);
+    const name = escapeHtml(d.name);
+    const expires = new Date(d.expiresAt).toUTCString();
+    return {
+      subject: 'Reset your LedgerFlow password',
+      text: `Hi ${d.name},\n\nSomeone asked to reset the password for your LedgerFlow account. Set a new one here: ${d.link}\n\nThis link expires on ${expires}. If it wasn't you, ignore this email; your password stays the same.`,
+      html: `<p>Hi ${name},</p><p>Someone asked to reset the password for your LedgerFlow account.</p><p><a href="${escapeHtml(d.link)}">Set a new password</a></p><p style="color:#666">This link expires on ${expires}. If it wasn't you, ignore this email; your password stays the same.</p>`,
+    };
+  },
+
   invitation: (raw: unknown) => {
     const d = invitationData.parse(raw);
     const org = escapeHtml(d.organizationName);
