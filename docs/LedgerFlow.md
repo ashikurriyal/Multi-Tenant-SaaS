@@ -506,7 +506,8 @@ Only an Owner may grant or remove the Owner role.
 | ID | Requirement |
 | --- | --- |
 | FR-PLAN-01 | `GET /plans` must return active plans for the public pricing page. |
-| FR-PLAN-02 | Plans are created by the seed script and mirror Stripe Prices (`stripePriceId`, `stripeMeteredPriceId`). Prices are not edited through the API. |
+| FR-PLAN-02 | Plans are created by the seed script. `npm run stripe:setup` (`server/scripts/stripe-setup.ts`) creates their Stripe Products and Prices and a Billing Meter, then writes `stripePriceId` (flat monthly) and `stripeMeteredPriceId` (overage) into the `plans` table. It is idempotent: everything is found by lookup key (`ledgerflow_<plan>_monthly`, `ledgerflow_<plan>_overage`); when a plan's amounts change, a new Price takes over the lookup key and the old one is archived. Prices are never edited through the API, and price ids are never put in environment variables. It refuses live-mode keys. |
+| FR-PLAN-03 | The overage Price is **metered and graduated**: the first `includedUnits` of a period cost 0, every further unit costs `overageUnitMicros`. Every accepted usage event can therefore be reported to the Meter, and Stripe bills only the excess. |
 
 ### 9.6 Billing (FR-BILL)
 
@@ -1619,7 +1620,7 @@ export default defineConfig({
 
 `prisma/seed.ts` must create:
 
-1. The three plans (after creating matching Products and Prices in Stripe test mode with a one-off script, `scripts/createStripePrices.ts`, which prints the price ids to paste into `.env`).
+1. The three plans (Free, Pro, Business) with their limits and prices. The seed never touches the Stripe price ids; run `npm run stripe:setup` afterwards to create the Stripe Products, Prices and Meter and link them.
 2. A super admin user (from `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`), already verified. Seeded demo users are verified too, so they can log in without an email.
 3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit.
 4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load.
@@ -1797,7 +1798,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `JWT_ACCESS_EXPIRES_IN` | `15m` | Access token lifetime |
 | `JWT_REFRESH_SECRET` | 64 random chars (different) | Refresh token signing |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | Refresh token lifetime |
-| `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe API |
+| `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe API (test mode). Optional locally and in CI: without it the API starts, and billing endpoints fail with a clear error. Use a separate Stripe account or sandbox per project |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Webhook signature verification |
 | `STRIPE_METER_EVENT_NAME` | `ledgerflow_units` | Billing Meter event name |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Mailtrap Sandbox (development), Gmail SMTP with an App Password (production) | Email sending. Required in production; without them in development, emails are rendered but not delivered |
@@ -2427,7 +2428,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ### Phase 2 — Stripe billing (weeks 3–4)
 
-- [ ] Script to create Stripe Products/Prices and a Billing Meter; plans seeded with their ids
+- [x] Script to create Stripe Products/Prices and a Billing Meter; plans linked to their ids (`npm run stripe:setup`)
 - [ ] Checkout session, Customer Portal session, success-page polling
 - [ ] Webhook receiver (raw body, signature, inbox) and processor (claim, re-fetch, transaction)
 - [ ] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period

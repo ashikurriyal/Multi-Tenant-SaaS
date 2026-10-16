@@ -55,6 +55,7 @@ The client proxies `/api/*` to the API through a Next.js rewrite, so the browser
 | `npm run typecheck` | `tsc --noEmit` | `tsc --noEmit` |
 | `npm run db:migrate` | Create + apply a migration (dev) | |
 | `npm run db:seed` | Seed plans + super admin | |
+| `npm run stripe:setup` | Create Stripe products, prices and usage meter (test mode) and link them to the plans | |
 | `npm run db:studio` | Open Prisma Studio | |
 | `npm run verify:tenancy` | Check tenant isolation + RBAC against the database (creates and removes its own test data) | |
 
