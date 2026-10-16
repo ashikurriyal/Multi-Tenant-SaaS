@@ -17,7 +17,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "verify:tenancy": "tsx scripts/verify-tenancy.ts"
+    "verify:tenancy": "tsx scripts/verify-tenancy.ts",
+    "stripe:setup": "tsx scripts/stripe-setup.ts"
   },
   "type": "commonjs",
   "dependencies": {
@@ -39,6 +40,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
+    "stripe": "^23.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

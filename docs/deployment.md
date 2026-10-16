@@ -61,6 +61,21 @@ New accounts can't log in until they click the link in their verification email,
 
 Gmail allows about 500 emails a day. `MAIL_FROM` must use the same address as `SMTP_USER`, or Gmail rejects or spam-folders the mail. Your local `server/.env` stays on Mailtrap, so development never emails real people.
 
+## Stripe (test mode)
+
+Billing runs in Stripe **test mode**: fake cards (`4242 4242 4242 4242`), no real money. Use a Stripe account (or sandbox) just for LedgerFlow, so its products and webhooks don't mix with other projects.
+
+1. Stripe Dashboard → **Developers → API keys** → copy the **Secret key** (`sk_test_…`). It goes into `STRIPE_SECRET_KEY` locally (`server/.env`) and on the API's Vercel project.
+2. Create the products, prices and usage meter and link them to the plans in **each** database you use:
+
+```bash
+cd server
+npm run stripe:setup                                            # development database (.env)
+DATABASE_URL="<ledgerflow-prod connection string>" npm run stripe:setup   # production database
+```
+
+Both databases can share the same test-mode Stripe account: the script finds the existing products by lookup key and only writes their ids into the database it is pointed at.
+
 ## 2. API on Vercel
 
 1. [vercel.com](https://vercel.com) → sign in with GitHub → **Add New → Project** → import `Multi-Tenant-SaaS`.
@@ -81,6 +96,7 @@ Gmail allows about 500 emails a day. `MAIL_FROM` must use the same address as `S
    | `SMTP_USER` | the app's Gmail address (see "Production email" above) |
    | `SMTP_PASS` | its 16-letter App Password, without spaces |
    | `MAIL_FROM` | `LedgerFlow <that same Gmail address>` |
+   | `STRIPE_SECRET_KEY` | your Stripe test-mode secret key (`sk_test_…`) |
 
 4. **Deploy.** When it finishes, open `https://<your-api>.vercel.app/health`. It should show `{"status":"ok","db":"ok"}`.
 5. **Settings → Git → Production Branch:** make sure it's `main`. If your GitHub default branch is `development`, Vercel picks that, and `vercel.json` would then skip every deploy.

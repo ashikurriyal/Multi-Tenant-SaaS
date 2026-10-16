@@ -7,13 +7,12 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
-// Stripe price ids are filled in Phase 2 (scripts/createStripePrices.ts → .env)
+// Stripe ids (stripePriceId, stripeMeteredPriceId) are written by `npm run stripe:setup`,
+// never by the seed, so re-running the seed can't wipe them
 const plans = [
   {
     code: 'FREE',
     name: 'Free',
-    stripePriceId: null,
-    stripeMeteredPriceId: null,
     monthlyPriceCents: 0,
     seatLimit: 3,
     includedUnits: 1_000,
@@ -22,8 +21,6 @@ const plans = [
   {
     code: 'PRO',
     name: 'Pro',
-    stripePriceId: process.env.STRIPE_PRICE_PRO || null,
-    stripeMeteredPriceId: process.env.STRIPE_PRICE_PRO_METERED || null,
     monthlyPriceCents: 4_900,
     seatLimit: 10,
     includedUnits: 50_000,
@@ -32,8 +29,6 @@ const plans = [
   {
     code: 'BUSINESS',
     name: 'Business',
-    stripePriceId: process.env.STRIPE_PRICE_BUSINESS || null,
-    stripeMeteredPriceId: process.env.STRIPE_PRICE_BUSINESS_METERED || null,
     monthlyPriceCents: 19_900,
     seatLimit: 50,
     includedUnits: 500_000,
