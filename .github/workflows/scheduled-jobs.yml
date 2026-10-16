@@ -46,7 +46,8 @@ jobs:
             -X POST -H "Authorization: Bearer $CRON_SECRET" \
             "$API_BASE_URL/api/v1/internal/jobs/retry-webhooks"
 
-  cleanup:
+  daily:
+    name: reconcile-stripe + cleanup
     # Daily schedule, or a manual run
     if: >-
       ${{ vars.API_BASE_URL != '' &&
@@ -54,7 +55,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Run reconcile-stripe
+        # Compares every subscription with Stripe and fixes drift (FR-WH-09)
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 280 --retry 1 --retry-delay 30 \
+            -X POST -H "Authorization: Bearer $CRON_SECRET" \
+            "$API_BASE_URL/api/v1/internal/jobs/reconcile-stripe"
       - name: Run cleanup
+        if: ${{ always() }}
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}

@@ -1,15 +1,22 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { ZodType } from 'zod';
 
-type TRequestSchema = ZodType<{ body?: unknown; query?: unknown; params?: unknown }>;
+type TRequestSchema = ZodType<{
+  body?: unknown;
+  query?: unknown;
+  params?: unknown;
+  headers?: unknown;
+}>;
 
-// Schemas are written as z.object({ body, query, params }); each part is optional
+// Schemas are written as z.object({ body, query, params, headers }); each part is optional.
+// Headers are only checked, never rewritten (header names are lower-case in Node)
 const validateRequest =
   (schema: TRequestSchema) => async (req: Request, _res: Response, next: NextFunction) => {
     const parsed = await schema.parseAsync({
       body: req.body,
       query: req.query,
       params: req.params,
+      headers: req.headers,
     });
 
     if (parsed.body !== undefined) req.body = parsed.body;
