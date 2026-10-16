@@ -18,3 +18,11 @@ export function homePathFor(me: Pick<Me, "memberships">): string {
 
 export const loginPathWithNext = (pathname: string) =>
   `/login?next=${encodeURIComponent(pathname)}`;
+
+// "/invite/<token>" → "<token>": registering from an invitation sends it to the API,
+// which then skips the verification email for the invited address
+export function inviteTokenFromNext(next: string | null | undefined): string | undefined {
+  const path = safeNextPath(next);
+  const match = path?.match(/^\/invite\/([A-Za-z0-9_-]{20,100})$/);
+  return match?.[1];
+}
