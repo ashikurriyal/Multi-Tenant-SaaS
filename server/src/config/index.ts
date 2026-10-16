@@ -45,6 +45,8 @@ const envSchema = z
         .startsWith('whsec_', 'must be a Stripe webhook signing secret (whsec_…)')
         .optional(),
     ),
+    // Days a past-due organization keeps full access after the first failed payment
+    GRACE_PERIOD_DAYS: z.coerce.number().int().min(0).max(60).default(7),
     // Proxies in front of the API whose X-Forwarded-For is trusted (Express "trust proxy")
     TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   })
@@ -97,6 +99,7 @@ const config = {
   enableJobs: env.ENABLE_JOBS,
   cronSecret: env.CRON_SECRET,
   trustProxy: env.TRUST_PROXY,
+  gracePeriodDays: env.GRACE_PERIOD_DAYS,
   stripe: {
     secretKey: env.STRIPE_SECRET_KEY,
     meterEventName: env.STRIPE_METER_EVENT_NAME,

@@ -1,4 +1,5 @@
 import type { Prisma } from '../../../generated/prisma/client';
+import { sendEmails } from '../../jobs/sendEmails';
 import { prisma } from '../../lib/prisma';
 import type { Stripe } from '../../lib/stripe';
 import { handlers, isHandled } from './stripe.handlers';
@@ -42,6 +43,8 @@ export async function processStripeEvent(eventId: string): Promise<TProcessOutco
       where: { id: eventId },
       data: { status: 'PROCESSED', processedAt: new Date(), lastError: null, nextAttemptAt: null },
     });
+    // Billing emails queued by the handler go out now (one query when there are none)
+    await sendEmails().catch((err) => console.error('[webhook] sending emails failed:', err));
     return 'processed';
   } catch (err) {
     const giveUp = row.attempts >= MAX_ATTEMPTS;
