@@ -76,6 +76,15 @@ DATABASE_URL="<ledgerflow-prod connection string>" npm run stripe:setup   # prod
 
 Both databases can share the same test-mode Stripe account: the script finds the existing products by lookup key and only writes their ids into the database it is pointed at.
 
+**Webhooks locally:** in a separate terminal, `cd server && npm run stripe:listen`. It prints `Your webhook signing secret is whsec_…`: put that in `server/.env` as `STRIPE_WEBHOOK_SECRET` and restart the API. Keep it running while you test payments; each delivery shows up as `--> event` / `<-- [200]`.
+
+**Webhooks in production** (after the API is deployed):
+
+1. Stripe Dashboard → **Developers → Webhooks** → **Add endpoint**.
+2. Endpoint URL: `https://<your-api>.vercel.app/api/v1/webhooks/stripe`.
+3. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end`.
+4. Open the endpoint → **Signing secret** → reveal → set it as `STRIPE_WEBHOOK_SECRET` on the API's Vercel project and redeploy. This is a different secret from the one `stripe listen` prints.
+
 ## 2. API on Vercel
 
 1. [vercel.com](https://vercel.com) → sign in with GitHub → **Add New → Project** → import `Multi-Tenant-SaaS`.
@@ -97,6 +106,7 @@ Both databases can share the same test-mode Stripe account: the script finds the
    | `SMTP_PASS` | its 16-letter App Password, without spaces |
    | `MAIL_FROM` | `LedgerFlow <that same Gmail address>` |
    | `STRIPE_SECRET_KEY` | your Stripe test-mode secret key (`sk_test_…`) |
+   | `STRIPE_WEBHOOK_SECRET` | the production webhook endpoint's signing secret (see "Webhooks in production") |
 
 4. **Deploy.** When it finishes, open `https://<your-api>.vercel.app/health`. It should show `{"status":"ok","db":"ok"}`.
 5. **Settings → Git → Production Branch:** make sure it's `main`. If your GitHub default branch is `development`, Vercel picks that, and `vercel.json` would then skip every deploy.

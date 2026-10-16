@@ -530,10 +530,10 @@ Only an Owner may grant or remove the Owner role.
 | FR-WH-01 | `POST /api/v1/webhooks/stripe` must read the **raw** request body (mounted with `express.raw({ type: 'application/json' })` before `express.json()`). |
 | FR-WH-02 | It must verify the `Stripe-Signature` header with `STRIPE_WEBHOOK_SECRET`. Invalid → `400`, nothing stored. |
 | FR-WH-03 | It must insert the event into `stripe_events` using Stripe's event id as primary key. If the id already exists, it must return `200` without processing again (deduplication). |
-| FR-WH-04 | It must then claim and process the event (section 16.5) and **always return `200`** once the event is stored, even if processing fails; failures are retried by a job. |
+| FR-WH-04 | Once the event is stored, the receiver must **answer `200` immediately** (`{ received: true, duplicate }`) and process the event **after** the response (Vercel `waitUntil`), so Stripe never waits on our database work. Processing claims the event atomically (`RECEIVED`/`FAILED` → `PROCESSING`), so the request, the retry job and other instances can never process one event twice. Failures are recorded on the row and retried by the `retry-webhooks` job. Without a configured `STRIPE_WEBHOOK_SECRET` the receiver answers `503` so Stripe retries later. |
 | FR-WH-05 | For subscription and invoice events the processor must **re-fetch the current object from the Stripe API** rather than trusting the event payload, so events arriving out of order still produce the correct final state. |
 | FR-WH-06 | All database changes for one event must happen in one Prisma transaction. |
-| FR-WH-07 | A failed event must be retried with exponential backoff (`nextAttemptAt = now + 2^attempts minutes`) up to 5 attempts, then stay `FAILED` and appear in the super-admin dashboard. |
+| FR-WH-07 | A failed event must be retried with exponential backoff (`nextAttemptAt = now + 2^attempts minutes`: 2, 4, 8, 16) up to 5 attempts, then stay `FAILED` with no next attempt and appear in the super-admin dashboard. A `PROCESSING` row untouched for 10 minutes (crashed or timed-out worker) is reset to `FAILED` and retried. |
 | FR-WH-08 | Events to handle in the MVP: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end`. Other events are stored and marked `PROCESSED` with no action. |
 | FR-WH-09 | A nightly reconciliation job must compare every organization that has a `stripeSubscriptionId` against Stripe and correct differences, writing audit action `reconciliation.corrected`. |
 
@@ -1730,7 +1730,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 
 | Job | Schedule (UTC) | What it does |
 | --- | --- | --- |
-| `retry-webhooks` | Every minute | Process `stripe_events` with status `RECEIVED` or `FAILED`, `attempts < 5`, `nextAttemptAt ≤ now`; reset `PROCESSING` rows older than 10 minutes to `FAILED` |
+| `retry-webhooks` | Every minute (every 10 min in production) | Process `stripe_events` that are `RECEIVED` for over a minute or `FAILED` with `nextAttemptAt ≤ now`, `attempts < 5`, oldest first; reset `PROCESSING` rows older than 10 minutes to `FAILED` first |
 | `send-emails` | Every minute (every 10 min in production) | Send `email_outbox` rows with status `PENDING` or `FAILED` and `attempts < 5`; claim each row by bumping `attempts` atomically |
 | `report-usage` | Every 5 minutes | For paid organizations, send unreported `usage_events` to Stripe Billing Meters (identifier = usage event id, so Stripe ignores duplicates); set `reportedToStripeAt` |
 | `usage-rollup` | Every hour at :05 | Recompute today's and yesterday's `usage_daily_rollups` from `usage_events` (upsert) |
@@ -1808,7 +1808,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `JWT_REFRESH_SECRET` | 64 random chars (different) | Refresh token signing |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | Refresh token lifetime |
 | `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe API (test mode). Optional locally and in CI: without it the API starts, and billing endpoints fail with a clear error. Use a separate Stripe account or sandbox per project |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Webhook signature verification |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Webhook signature verification. Locally: printed by `npm run stripe:listen` (it changes per CLI login). Production: the Dashboard endpoint's signing secret |
 | `STRIPE_METER_EVENT_NAME` | `ledgerflow_units` | Billing Meter event name |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Mailtrap Sandbox (development), Gmail SMTP with an App Password (production) | Email sending. Required in production; without them in development, emails are rendered but not delivered |
 | `MAIL_FROM` | `LedgerFlow <no-reply@ledgerflow.dev>` | Sender |
@@ -2439,10 +2439,11 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 - [x] Script to create Stripe Products/Prices and a Billing Meter; plans linked to their ids (`npm run stripe:setup`)
 - [x] Checkout session, Customer Portal session (server); success-page polling comes with the billing page
-- [ ] Webhook receiver (raw body, signature, inbox) and processor (claim, re-fetch, transaction)
+- [x] Webhook receiver (raw body, signature, inbox) and processor (claim, exactly once, backoff); re-fetch + transaction come with subscription sync
 - [ ] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
 - [ ] Change-plan preview and apply (with Idempotency-Key); invoices list; billing page
-- [ ] `retry-webhooks` job; past-due banner; payment emails
+- [x] `retry-webhooks` job
+- [ ] Past-due banner; payment emails
 
 **Done when:** upgrade, plan change, cancel and a failed payment each show the correct state in the UI without a manual refresh (checklist 19.3).
 

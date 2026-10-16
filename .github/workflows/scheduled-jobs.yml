@@ -21,7 +21,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  send-emails:
+  frequent:
+    name: send-emails + retry-webhooks
     if: ${{ vars.API_BASE_URL != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -34,6 +35,16 @@ jobs:
           curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
             -X POST -H "Authorization: Bearer $CRON_SECRET" \
             "$API_BASE_URL/api/v1/internal/jobs/send-emails"
+      - name: Run retry-webhooks
+        # Stripe events whose processing failed or never finished (FR-WH-07)
+        if: ${{ always() }}
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
+            -X POST -H "Authorization: Bearer $CRON_SECRET" \
+            "$API_BASE_URL/api/v1/internal/jobs/retry-webhooks"
 
   cleanup:
     # Daily schedule, or a manual run
