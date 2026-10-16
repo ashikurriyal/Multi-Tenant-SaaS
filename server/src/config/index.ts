@@ -37,6 +37,14 @@ const envSchema = z
         .optional(),
     ),
     STRIPE_METER_EVENT_NAME: z.string().default('ledgerflow_units'),
+    // Printed by `stripe listen` locally; the endpoint's signing secret in production
+    STRIPE_WEBHOOK_SECRET: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z
+        .string()
+        .startsWith('whsec_', 'must be a Stripe webhook signing secret (whsec_…)')
+        .optional(),
+    ),
     // Proxies in front of the API whose X-Forwarded-For is trusted (Express "trust proxy")
     TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   })
@@ -92,6 +100,7 @@ const config = {
   stripe: {
     secretKey: env.STRIPE_SECRET_KEY,
     meterEventName: env.STRIPE_METER_EVENT_NAME,
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
   },
 } as const;
 
