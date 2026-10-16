@@ -3,6 +3,7 @@ import { JobRoutes } from '../jobs/jobs.route';
 import { AuthRoutes } from '../modules/auth/auth.route';
 import { InvitationRoutes } from '../modules/invitation/invitation.route';
 import { OrganizationRoutes } from '../modules/organization/organization.route';
+import { PlanRoutes } from '../modules/plan/plan.route';
 import { UserRoutes } from '../modules/user/user.route';
 
 const router = Router();
@@ -13,6 +14,7 @@ const moduleRoutes: { path: string; route: Router }[] = [
   { path: '/users', route: UserRoutes },
   { path: '/orgs', route: OrganizationRoutes },
   { path: '/invitations', route: InvitationRoutes },
+  { path: '/plans', route: PlanRoutes },
   { path: '/internal/jobs', route: JobRoutes },
 ];
 

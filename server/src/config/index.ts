@@ -28,6 +28,25 @@ const envSchema = z
       (v) => (v === '' ? undefined : v),
       z.string().min(32, 'must be at least 32 characters').optional(),
     ),
+    // Stripe test-mode key; optional so CI and local runs without billing still start
+    STRIPE_SECRET_KEY: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z
+        .string()
+        .regex(/^(sk|rk)_(test|live)_/, 'must be a Stripe secret key (sk_test_…)')
+        .optional(),
+    ),
+    STRIPE_METER_EVENT_NAME: z.string().default('ledgerflow_units'),
+    // Printed by `stripe listen` locally; the endpoint's signing secret in production
+    STRIPE_WEBHOOK_SECRET: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z
+        .string()
+        .startsWith('whsec_', 'must be a Stripe webhook signing secret (whsec_…)')
+        .optional(),
+    ),
+    // Days a past-due organization keeps full access after the first failed payment
+    GRACE_PERIOD_DAYS: z.coerce.number().int().min(0).max(60).default(7),
     // Proxies in front of the API whose X-Forwarded-For is trusted (Express "trust proxy")
     TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   })
@@ -80,6 +99,12 @@ const config = {
   enableJobs: env.ENABLE_JOBS,
   cronSecret: env.CRON_SECRET,
   trustProxy: env.TRUST_PROXY,
+  gracePeriodDays: env.GRACE_PERIOD_DAYS,
+  stripe: {
+    secretKey: env.STRIPE_SECRET_KEY,
+    meterEventName: env.STRIPE_METER_EVENT_NAME,
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+  },
 } as const;
 
 export default config;

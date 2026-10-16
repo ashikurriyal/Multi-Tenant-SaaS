@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -38,7 +39,7 @@ const ROLE_HELP = {
 } as const;
 
 export default function InviteDialog({ seatsFull }: { seatsFull: boolean }) {
-  const { org } = useActiveOrg();
+  const { org, can } = useActiveOrg();
   const [open, setOpen] = useState(false);
   const [createInvitation, { isLoading }] = useCreateInvitationMutation();
   const {
@@ -101,6 +102,17 @@ export default function InviteDialog({ seatsFull }: { seatsFull: boolean }) {
               <AlertDescription>
                 {errors.root?.message ??
                   "All seats on your plan are in use. Upgrade your plan or remove a member to invite someone new."}
+                {(seatError || seatsFull) && org && can("billing:manage") && (
+                  <>
+                    {" "}
+                    <Link
+                      href={`/${org.slug}/billing`}
+                      className="font-medium underline underline-offset-4"
+                    >
+                      View plans
+                    </Link>
+                  </>
+                )}
               </AlertDescription>
             </Alert>
           )}

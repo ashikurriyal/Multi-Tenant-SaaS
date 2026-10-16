@@ -506,20 +506,21 @@ Only an Owner may grant or remove the Owner role.
 | ID | Requirement |
 | --- | --- |
 | FR-PLAN-01 | `GET /plans` must return active plans for the public pricing page. |
-| FR-PLAN-02 | Plans are created by the seed script and mirror Stripe Prices (`stripePriceId`, `stripeMeteredPriceId`). Prices are not edited through the API. |
+| FR-PLAN-02 | Plans are created by the seed script. `npm run stripe:setup` (`server/scripts/stripe-setup.ts`) creates their Stripe Products and Prices and a Billing Meter, then writes `stripePriceId` (flat monthly) and `stripeMeteredPriceId` (overage) into the `plans` table. It is idempotent: everything is found by lookup key (`ledgerflow_<plan>_monthly`, `ledgerflow_<plan>_overage`); when a plan's amounts change, a new Price takes over the lookup key and the old one is archived. Prices are never edited through the API, and price ids are never put in environment variables. It refuses live-mode keys. |
+| FR-PLAN-03 | The overage Price is **metered and graduated**: the first `includedUnits` of a period cost 0, every further unit costs `overageUnitMicros`. Every accepted usage event can therefore be reported to the Meter, and Stripe bills only the excess. |
 
 ### 9.6 Billing (FR-BILL)
 
 | ID | Requirement |
 | --- | --- |
 | FR-BILL-01 | `GET /orgs/:orgId/billing/subscription` must return plan, status, period dates, `cancelAtPeriodEnd`, `graceEndsAt` and access level. |
-| FR-BILL-02 | `POST /billing/checkout-session` with `planCode` must: create the Stripe Customer if the organization has none (save `stripeCustomerId`); create a Checkout Session in `subscription` mode with the plan's flat price and metered overage price; put `organizationId` in session and subscription `metadata`; return the Checkout URL. It is only allowed when the organization has no active paid subscription (`409 ALREADY_SUBSCRIBED` otherwise). |
+| FR-BILL-02 | `POST /billing/checkout-session` with `planCode` (`PRO` or `BUSINESS`) must: create the Stripe Customer if the organization has none and save `stripeCustomerId` **immediately** (so abandoned checkouts never create duplicate customers; the create call uses the idempotency key `ledgerflow-customer-<orgId>` and only organization data, so simultaneous clicks get the same customer); create a Checkout Session in `subscription` mode with the plan's flat price (quantity 1) and metered overage price; put `organizationId` and `planCode` in session and subscription `metadata` and `client_reference_id`; return the Checkout URL. It is only allowed when the organization holds no paid subscription (`INCOMPLETE`, `TRIALING`, `ACTIVE`, `PAST_DUE` or `UNPAID` with a `stripeSubscriptionId` → `409 ALREADY_SUBSCRIBED`). A plan without Stripe prices → `503 BILLING_NOT_CONFIGURED`. |
 | FR-BILL-03 | The success page must **not** activate anything. The client polls `GET /billing/subscription` until status becomes `ACTIVE` or `TRIALING` (stop after 30 seconds). |
-| FR-BILL-04 | `POST /billing/change-plan/preview` must return the prorated amount due now and the next invoice total, using Stripe's invoice preview. |
-| FR-BILL-05 | `POST /billing/change-plan` must update the Stripe subscription's price with proration. It must accept an `Idempotency-Key` header and pass it to Stripe. The local database changes only when the resulting webhook arrives. |
-| FR-BILL-06 | Downgrading must be refused with `409 SEATS_EXCEED_TARGET_PLAN` if the organization has more members than the target plan allows. |
-| FR-BILL-07 | `POST /billing/portal-session` must return a Stripe Customer Portal URL (update card, cancel, download invoices). |
-| FR-BILL-08 | `GET /billing/invoices` must list invoices newest first with amount, status, period and Stripe-hosted invoice URL. |
+| FR-BILL-04 | `POST /billing/change-plan/preview` must return the prorated amount due now (`amountDueNowCents`, negative = credit), the new monthly price, and a `prorationDate`, using Stripe's invoice preview with `proration_behavior: always_invoice`. Only for an `ACTIVE` or `TRIALING` paid subscription (`409 NOT_SUBSCRIBED` otherwise, `409 PAYMENT_FAILED` while past due); the same plan → `409 CONFLICT`; moving to Free is done by cancelling in the Customer Portal. |
+| FR-BILL-05 | `POST /billing/change-plan` must update the Stripe subscription's flat and metered prices with proration charged immediately (`always_invoice`, `payment_behavior: error_if_incomplete`, so a declined card changes nothing → `402 PAYMENT_FAILED`). It must require an `Idempotency-Key` header (8–100 characters) and pass it to Stripe: a repeated request returns the first one's result (a request still in progress is waited for), the same key with a different plan → `409 IDEMPOTENCY_KEY_REUSED`. A `prorationDate` from a preview less than an hour old is used, so the charge equals the preview. The local database changes only when the resulting webhook arrives (`202`). |
+| FR-BILL-06 | Downgrading (preview and apply) must be refused with `409 SEATS_EXCEED_TARGET_PLAN` if members plus pending invitations exceed the target plan's seat limit. |
+| FR-BILL-07 | `POST /billing/portal-session` must return a Stripe Customer Portal URL (update card, update billing email and address, download invoices, cancel at period end). The portal configuration is created by `npm run stripe:setup`; plan changes are **not** offered there, because they go through FR-BILL-04…06 (preview and seat checks). Without a Stripe customer → `409 NO_BILLING_ACCOUNT`. |
+| FR-BILL-08 | `GET /billing/invoices` must list invoices newest first (paginated) with amount due and paid, status, period, paid date and Stripe-hosted invoice URL, from the local `invoices` table kept current by invoice webhooks. |
 | FR-BILL-09 | Every billing change must write an audit log entry (actor = user for requests, `null` for Stripe-driven changes). |
 
 ### 9.7 Stripe webhooks (FR-WH)
@@ -529,10 +530,10 @@ Only an Owner may grant or remove the Owner role.
 | FR-WH-01 | `POST /api/v1/webhooks/stripe` must read the **raw** request body (mounted with `express.raw({ type: 'application/json' })` before `express.json()`). |
 | FR-WH-02 | It must verify the `Stripe-Signature` header with `STRIPE_WEBHOOK_SECRET`. Invalid → `400`, nothing stored. |
 | FR-WH-03 | It must insert the event into `stripe_events` using Stripe's event id as primary key. If the id already exists, it must return `200` without processing again (deduplication). |
-| FR-WH-04 | It must then claim and process the event (section 16.5) and **always return `200`** once the event is stored, even if processing fails; failures are retried by a job. |
-| FR-WH-05 | For subscription and invoice events the processor must **re-fetch the current object from the Stripe API** rather than trusting the event payload, so events arriving out of order still produce the correct final state. |
+| FR-WH-04 | Once the event is stored, the receiver must **answer `200` immediately** (`{ received: true, duplicate }`) and process the event **after** the response (Vercel `waitUntil`), so Stripe never waits on our database work. Processing claims the event atomically (`RECEIVED`/`FAILED` → `PROCESSING`), so the request, the retry job and other instances can never process one event twice. Failures are recorded on the row and retried by the `retry-webhooks` job. Without a configured `STRIPE_WEBHOOK_SECRET` the receiver answers `503` so Stripe retries later. |
+| FR-WH-05 | For subscription and invoice events the processor must **re-fetch the current object from the Stripe API** rather than trusting the event payload, so events arriving out of order still produce the correct final state (observed in testing: `invoice.paid` regularly arrives before `customer.subscription.created`). |
 | FR-WH-06 | All database changes for one event must happen in one Prisma transaction. |
-| FR-WH-07 | A failed event must be retried with exponential backoff (`nextAttemptAt = now + 2^attempts minutes`) up to 5 attempts, then stay `FAILED` and appear in the super-admin dashboard. |
+| FR-WH-07 | A failed event must be retried with exponential backoff (`nextAttemptAt = now + 2^attempts minutes`: 2, 4, 8, 16) up to 5 attempts, then stay `FAILED` with no next attempt and appear in the super-admin dashboard. A `PROCESSING` row untouched for 10 minutes (crashed or timed-out worker) is reset to `FAILED` and retried. |
 | FR-WH-08 | Events to handle in the MVP: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end`. Other events are stored and marked `PROCESSED` with no action. |
 | FR-WH-09 | A nightly reconciliation job must compare every organization that has a `stripeSubscriptionId` against Stripe and correct differences, writing audit action `reconciliation.corrected`. |
 
@@ -636,6 +637,7 @@ Only an Owner may grant or remove the Owner role.
 | 401 | `TOKEN_REUSED` | Revoked refresh token presented; family revoked |
 | 401 | `INVALID_API_KEY` | Unknown or revoked API key |
 | 402 | `PLAN_LIMIT_SEATS` | Seat limit reached |
+| 402 | `PAYMENT_FAILED` | Card declined during a plan change (nothing changed), or plan change attempted while past due (409) |
 | 403 | `FORBIDDEN` | Member lacks the permission |
 | 403 | `USER_BLOCKED` | Account blocked |
 | 403 | `EMAIL_NOT_VERIFIED` | Correct password, but the email address is not verified yet |
@@ -645,11 +647,16 @@ Only an Owner may grant or remove the Owner role.
 | 409 | `LAST_OWNER` | Would remove or demote the last Owner |
 | 409 | `ALREADY_SUBSCRIBED` | Checkout requested while a paid subscription is active |
 | 409 | `SEATS_EXCEED_TARGET_PLAN` | Downgrade target has fewer seats than current members |
+| 409 | `NO_BILLING_ACCOUNT` | Customer Portal requested before the organization's first checkout |
+| 409 | `NOT_SUBSCRIBED` | Plan change requested without an active paid subscription |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` was sent for a different request |
 | 410 | `INVITE_EXPIRED` | Invitation expired or already used |
 | 410 | `TOKEN_EXPIRED` | Verification or password-reset link unknown, expired or already used |
 | 429 | `PLAN_LIMIT_USAGE` | Free-plan usage limit reached |
 | 429 | `RATE_LIMITED` | Too many requests |
 | 500 | `INTERNAL_ERROR` | Unexpected error (details logged, not returned) |
+| 502 | `PAYMENT_PROVIDER_ERROR` | A Stripe API call failed (Stripe's message is logged with its request id, not returned) |
+| 503 | `BILLING_NOT_CONFIGURED` | The plan has no Stripe prices yet (`npm run stripe:setup` not run) |
 
 Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 404, `P2003` (foreign key) → 400.
 
@@ -828,13 +835,17 @@ No body. The browser sends the cookie automatically.
   "statusCode": 200,
   "message": "Subscription retrieved successfully",
   "data": {
-    "plan": { "code": "PRO", "name": "Pro", "monthlyPriceCents": 4900 },
+    "plan": { "code": "PRO", "name": "Pro", "monthlyPriceCents": 4900, "seatLimit": 10,
+              "includedUnits": 50000, "overageUnitMicros": 2000 },
     "status": "PAST_DUE",
     "accessLevel": "FULL",
     "currentPeriodStart": "2026-10-01T00:00:00.000Z",
     "currentPeriodEnd": "2026-11-01T00:00:00.000Z",
     "cancelAtPeriodEnd": false,
-    "graceEndsAt": "2026-10-12T00:00:00.000Z"
+    "trialEndsAt": null,
+    "graceEndsAt": "2026-10-12T00:00:00.000Z",
+    "isPaidPlan": true,
+    "hasBillingAccount": true
   }
 }
 ```
@@ -844,22 +855,38 @@ No body. The browser sends the cookie automatically.
 ```json
 // Request
 { "planCode": "PRO" }
-// Response 200
-{ "success": true, "statusCode": 200, "message": "Checkout session created",
+// Response 201
+{ "success": true, "statusCode": 201, "message": "Checkout session created",
   "data": { "url": "https://checkout.stripe.com/c/pay/cs_test_…" } }
 ```
 
-The client does `window.location.href = data.url`.
+The client does `window.location.href = data.url`. Stripe sends the user back to `/<orgSlug>/billing?checkout=success` (or `?checkout=canceled`); the subscription changes only when the webhook arrives (FR-BILL-03).
+
+`POST /api/v1/orgs/:orgId/billing/portal-session` answers the same way with a `https://billing.stripe.com/…` URL, or `409 NO_BILLING_ACCOUNT` before the first checkout.
 
 #### 22. Change-plan preview — `POST /api/v1/orgs/:orgId/billing/change-plan/preview`
 
 ```json
 // Request
 { "planCode": "BUSINESS" }
-// Response 200
-{ "success": true, "statusCode": 200, "message": "Preview calculated",
-  "data": { "amountDueNowCents": 7500, "nextInvoiceTotalCents": 19900, "currency": "usd" } }
+// Response 200 (half-way through a Pro month)
+{ "success": true, "statusCode": 200, "message": "Plan change preview",
+  "data": { "currentPlan": { "code": "PRO", "name": "Pro" },
+            "targetPlan": { "code": "BUSINESS", "name": "Business", "monthlyPriceCents": 19900 },
+            "isUpgrade": true, "amountDueNowCents": 7500, "currency": "usd",
+            "nextMonthlyCents": 19900, "prorationDate": 1792178391 } }
 ```
+
+Apply with the same `planCode`, the `prorationDate` from the preview (so the charge equals the preview) and a client-generated `Idempotency-Key` header:
+
+```http
+POST /api/v1/orgs/:orgId/billing/change-plan
+Idempotency-Key: 3f2b9c4e-…
+{ "planCode": "BUSINESS", "prorationDate": 1792178391 }
+→ 202 { "data": { "planCode": "BUSINESS", "status": "pending" } }
+```
+
+`202` means Stripe accepted the change; the plan switches when `customer.subscription.updated` arrives. A negative `amountDueNowCents` (downgrade) is a credit Stripe applies to the next invoices.
 
 #### 27. Create API key — `POST /api/v1/orgs/:orgId/api-keys`
 
@@ -1619,7 +1646,7 @@ export default defineConfig({
 
 `prisma/seed.ts` must create:
 
-1. The three plans (after creating matching Products and Prices in Stripe test mode with a one-off script, `scripts/createStripePrices.ts`, which prints the price ids to paste into `.env`).
+1. The three plans (Free, Pro, Business) with their limits and prices. The seed never touches the Stripe price ids; run `npm run stripe:setup` afterwards to create the Stripe Products, Prices and Meter and link them.
 2. A super admin user (from `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`), already verified. Seeded demo users are verified too, so they can log in without an email.
 3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit.
 4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load.
@@ -1666,6 +1693,16 @@ Whether repeated payment failure ends in `UNPAID` or `CANCELED` is a setting in 
 | `invoice.paid` | Upsert invoice as `PAID`; if subscription was `PAST_DUE`: set `ACTIVE`, clear `graceEndsAt`, email `payment_recovered` |
 | `invoice.payment_failed` | Upsert invoice; set `PAST_DUE`; set `graceEndsAt = now + 7 days` only if it is not already set; email `payment_failed` |
 | `customer.subscription.trial_will_end` | Email `trial_will_end` to Owners and Billing members |
+
+How the handlers apply these rules (`server/src/modules/billing/billing.sync.ts`):
+
+- **Which organization:** `metadata.organizationId` (set by our checkout), otherwise the organization whose `stripeCustomerId` matches. Objects matching neither are ignored, so a shared Stripe account can't write into LedgerFlow.
+- **Plan:** the subscription's licensed (non-metered) item; its price must match a plan's `stripePriceId`, otherwise the event fails and is retried (and shows up as `FAILED`).
+- **Period dates** come from the subscription **item** (Stripe API 2025+); `cancelAtPeriodEnd` is true when `cancel_at_period_end` or `cancel_at` is set and the subscription hasn't ended.
+- **One writer at a time:** each sync locks the organization's `subscriptions` row (`SELECT … FOR UPDATE`) inside its transaction.
+- **Stale events:** an event about an *older* subscription that has ended is ignored when the organization already points at another subscription.
+- **Emails follow status changes**, not events: `→ PAST_DUE` sends `payment_failed` (with the grace end date), `PAST_DUE → ACTIVE/TRIALING` sends `payment_recovered`, `→ CANCELED` sends `subscription_canceled`. A repeated event never sends a second email. Recipients: Owners and Billing members with a verified email. They are sent right after the event is processed.
+- **Audit (FR-BILL-09):** `plan.changed` and `subscription.status_changed` with `actorId = null`.
 
 ### 12.3 Entitlements
 
@@ -1720,13 +1757,13 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 
 | Job | Schedule (UTC) | What it does |
 | --- | --- | --- |
-| `retry-webhooks` | Every minute | Process `stripe_events` with status `RECEIVED` or `FAILED`, `attempts < 5`, `nextAttemptAt ≤ now`; reset `PROCESSING` rows older than 10 minutes to `FAILED` |
+| `retry-webhooks` | Every minute (every 10 min in production) | Process `stripe_events` that are `RECEIVED` for over a minute or `FAILED` with `nextAttemptAt ≤ now`, `attempts < 5`, oldest first; reset `PROCESSING` rows older than 10 minutes to `FAILED` first |
 | `send-emails` | Every minute (every 10 min in production) | Send `email_outbox` rows with status `PENDING` or `FAILED` and `attempts < 5`; claim each row by bumping `attempts` atomically |
 | `report-usage` | Every 5 minutes | For paid organizations, send unreported `usage_events` to Stripe Billing Meters (identifier = usage event id, so Stripe ignores duplicates); set `reportedToStripeAt` |
 | `usage-rollup` | Every hour at :05 | Recompute today's and yesterday's `usage_daily_rollups` from `usage_events` (upsert) |
 | `roll-free-periods` | Daily 00:01 | Move Free subscriptions whose `currentPeriodEnd` has passed to the next calendar month |
 | `mrr-snapshot` | Daily 00:15 | Write today's `mrr_snapshots` row for every organization |
-| `reconcile-stripe` | Daily 01:00 | Compare subscriptions with Stripe and correct mismatches (FR-WH-09) |
+| `reconcile-stripe` | Daily 01:00 (03:15 with `cleanup` in production) | For every organization with a Stripe customer, re-sync its subscription from Stripe (also finding subscriptions whose webhooks never arrived) and audit each corrected field as `reconciliation.corrected` (FR-WH-09) |
 | `verify-usage-counters` | Daily 01:30 | Compare `usage_counters.units` with `SUM(usage_events.quantity)` for the current period; fix and log any drift |
 | `cleanup` | Daily 03:15 | Delete accounts unverified for 7 days (and organizations only they belong to), email tokens used or expired for more than a day, and ended `rate_limits` windows |
 
@@ -1797,8 +1834,8 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `JWT_ACCESS_EXPIRES_IN` | `15m` | Access token lifetime |
 | `JWT_REFRESH_SECRET` | 64 random chars (different) | Refresh token signing |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | Refresh token lifetime |
-| `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe API |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Webhook signature verification |
+| `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe API (test mode). Optional locally and in CI: without it the API starts, and billing endpoints fail with a clear error. Use a separate Stripe account or sandbox per project |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Webhook signature verification. Locally: printed by `npm run stripe:listen` (it changes per CLI login). Production: the Dashboard endpoint's signing secret |
 | `STRIPE_METER_EVENT_NAME` | `ledgerflow_units` | Billing Meter event name |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Mailtrap Sandbox (development), Gmail SMTP with an App Password (production) | Email sending. Required in production; without them in development, emails are rendered but not delivered |
 | `MAIL_FROM` | `LedgerFlow <no-reply@ledgerflow.dev>` | Sender |
@@ -1806,7 +1843,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `CRON_SECRET` | 64 random chars | Bearer secret for `/internal/jobs/*`; required in production |
 | `TRUST_PROXY` | `1` | Proxies in front of the API whose `X-Forwarded-For` is trusted (client IP for rate limits and logs) |
 | `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` | — | Used by the seed only |
-| `GRACE_PERIOD_DAYS` | `7` | Past-due grace period |
+| `GRACE_PERIOD_DAYS` | `7` | Past-due grace period: full access for this many days after the first failed payment of a past-due episode |
 
 ### 15.2 Client (`client/.env.local`)
 
@@ -2369,7 +2406,7 @@ useEffect(() => {
 | Route | Who | Content | Key behaviour |
 | --- | --- | --- | --- |
 | `/` | Everyone | Landing page (Magic UI accents) | Static, fast |
-| `/pricing` | Everyone | Plan cards from `GET /plans` | Server-rendered |
+| `/pricing` | Everyone | Plan cards from `GET /plans` | Static shell; plans rendered on the server per request inside `<Suspense>` (the build never calls the API) |
 | `/login`, `/register` | Visitors | Forms (React Hook Form + Zod) | Register ends on a "Check your inbox" screen with resend; login shows a resend action for `EMAIL_NOT_VERIFIED`; "Forgot password?" link; demo-account buttons on login |
 | `/verify-email` | Visitors | Verifies the token from the link | Logs in and continues to `?next=` or the first organization; expired link → resend |
 | `/forgot-password`, `/reset-password` | Visitors | Request a reset link; set a new password from the link | Same confirmation for every email; after reset → login |
@@ -2377,7 +2414,7 @@ useEffect(() => {
 | `/invite/[token]` | Everyone | Org name, role, accept button | Prompts login/register if needed |
 | `/[orgSlug]/dashboard` | Members | Usage vs quota, 30-day chart, plan badge | Banner at 80% and 100% usage; past-due banner |
 | `/[orgSlug]/usage` | Members | Daily usage table and chart with date range | Range stored in URL search params |
-| `/[orgSlug]/billing` | Billing, Admin, Owner | Plan cards, change plan, invoices, portal button | Checkout polling; proration preview dialog |
+| `/[orgSlug]/billing` | Billing, Admin, Owner (actions: Billing, Owner) | Current plan, plan cards (Upgrade → Checkout; Switch → preview dialog), Manage billing (portal), invoices | After Checkout (`?checkout=success`) or a plan switch: polls the subscription every 2 s until the webhook has applied it (gives up after 30 s); a past-due/unpaid/incomplete banner shows on every org page |
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
 | `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke | Show-once dialog with copy button |
 | `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes | Paginated |
@@ -2427,12 +2464,15 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ### Phase 2 — Stripe billing (weeks 3–4)
 
-- [ ] Script to create Stripe Products/Prices and a Billing Meter; plans seeded with their ids
-- [ ] Checkout session, Customer Portal session, success-page polling
-- [ ] Webhook receiver (raw body, signature, inbox) and processor (claim, re-fetch, transaction)
-- [ ] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
-- [ ] Change-plan preview and apply (with Idempotency-Key); invoices list; billing page
-- [ ] `retry-webhooks` job; past-due banner; payment emails
+- [x] Script to create Stripe Products/Prices and a Billing Meter; plans linked to their ids (`npm run stripe:setup`)
+- [x] Checkout session, Customer Portal session (server); success-page polling comes with the billing page
+- [x] Webhook receiver (raw body, signature, inbox) and processor (claim, exactly once, backoff, re-fetch, transaction)
+- [x] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
+- [x] Change-plan preview and apply (with Idempotency-Key); invoices list
+- [x] Billing page, pricing page
+- [x] `retry-webhooks` job
+- [x] Payment emails
+- [x] Past-due banner
 
 **Done when:** upgrade, plan change, cancel and a failed payment each show the correct state in the UI without a manual refresh (checklist 19.3).
 
@@ -2449,7 +2489,8 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ### Phase 4 — Hardening and launch (weeks 7–8)
 
-- [ ] `reconcile-stripe` job; failed-webhooks admin page
+- [x] `reconcile-stripe` job
+- [ ] Failed-webhooks admin page
 - [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
 - [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
 - [ ] Audit log page; empty/loading/error states everywhere

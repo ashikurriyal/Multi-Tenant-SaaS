@@ -8,6 +8,7 @@ import passport from './lib/passport';
 import { prisma } from './lib/prisma';
 import globalErrorHandler from './middlewares/globalErrorHandler';
 import notFound from './middlewares/notFound';
+import { WebhookRoutes } from './modules/webhook/webhook.route';
 import router from './routes';
 
 const app = express();
@@ -18,7 +19,8 @@ app.use(helmet());
 app.use(cors({ origin: config.clientUrl, credentials: true }));
 app.use(morgan(config.isProd ? 'combined' : 'dev'));
 
-// The Stripe webhook route (raw body) will be mounted here, BEFORE express.json()
+// Stripe webhooks need the raw body for the signature check: mount BEFORE express.json()
+app.use('/api/v1/webhooks', WebhookRoutes);
 
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true }));
