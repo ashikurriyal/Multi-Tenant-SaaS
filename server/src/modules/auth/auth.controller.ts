@@ -1,24 +1,48 @@
+import type { Response } from 'express';
 import httpStatus from 'http-status';
+import { sendEmails } from '../../jobs/sendEmails';
+import { runInBackground } from '../../lib/background';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { REFRESH_COOKIE, refreshCookieOptions } from '../../utils/tokens';
 import { AuthService } from './auth.service';
 
+// Same body for every outcome, so these endpoints never reveal whether an account exists
+const LINK_SENT_MESSAGE =
+  'If an account exists for this email, we have sent a link to it. Check your inbox.';
+
+const setRefreshCookie = (res: Response, refresh: { token: string; expiresAt: Date }) => {
+  // The refresh token lives only in the httpOnly cookie, never in the body
+  res.cookie(REFRESH_COOKIE, refresh.token, refreshCookieOptions(refresh.expiresAt));
+};
+
+const sendQueuedEmails = () => runInBackground('send-emails', sendEmails);
+
 const register = catchAsync(async (req, res) => {
-  const result = await AuthService.register(req.body);
+  const { user, organization, verified } = await AuthService.register(req.body);
+
+  if (verified) {
+    // Signed up from an invitation to this address: no extra email, straight in
+    const session = await AuthService.startSession(user);
+    setRefreshCookie(res, session.refresh);
+    return sendResponse(res, {
+      statusCode: httpStatus.CREATED,
+      message: 'Account created successfully',
+      data: { user, organization, verificationRequired: false, accessToken: session.accessToken },
+    });
+  }
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
-    message: 'Account created successfully',
-    data: result,
+    message: 'Account created. Check your inbox to verify your email.',
+    data: { user, organization, verificationRequired: true },
   });
+  sendQueuedEmails();
 });
 
 const login = catchAsync(async (req, res) => {
   const { accessToken, refresh, user } = await AuthService.login(req.user!);
-
-  // The refresh token lives only in the httpOnly cookie, never in the body
-  res.cookie(REFRESH_COOKIE, refresh.token, refreshCookieOptions(refresh.expiresAt));
+  setRefreshCookie(res, refresh);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -27,10 +51,44 @@ const login = catchAsync(async (req, res) => {
   });
 });
 
+const verifyEmail = catchAsync(async (req, res) => {
+  const { accessToken, refresh, user } = await AuthService.verifyEmail(req.body.token);
+  setRefreshCookie(res, refresh);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'Email verified',
+    data: { accessToken, user },
+  });
+});
+
+const resendVerification = catchAsync(async (req, res) => {
+  const queued = await AuthService.resendVerification(req.body.email, req.body.next);
+  sendResponse(res, { statusCode: httpStatus.OK, message: LINK_SENT_MESSAGE });
+  if (queued) sendQueuedEmails();
+});
+
+const forgotPassword = catchAsync(async (req, res) => {
+  const queued = await AuthService.forgotPassword(req.body.email);
+  sendResponse(res, { statusCode: httpStatus.OK, message: LINK_SENT_MESSAGE });
+  if (queued) sendQueuedEmails();
+});
+
+const resetPassword = catchAsync(async (req, res) => {
+  await AuthService.resetPassword(req.body.token, req.body.password);
+  // Any session in this browser ended too
+  res.clearCookie(REFRESH_COOKIE, refreshCookieOptions());
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    message: 'Password changed. Log in with your new password.',
+  });
+});
+
 const refreshToken = catchAsync(async (req, res) => {
   try {
     const { accessToken, refresh } = await AuthService.refreshToken(req.cookies[REFRESH_COOKIE]);
-    res.cookie(REFRESH_COOKIE, refresh.token, refreshCookieOptions(refresh.expiresAt));
+    setRefreshCookie(res, refresh);
 
     sendResponse(res, {
       statusCode: httpStatus.OK,
@@ -54,4 +112,13 @@ const logout = catchAsync(async (req, res) => {
   });
 });
 
-export const AuthController = { register, login, refreshToken, logout };
+export const AuthController = {
+  register,
+  login,
+  verifyEmail,
+  resendVerification,
+  forgotPassword,
+  resetPassword,
+  refreshToken,
+  logout,
+};
