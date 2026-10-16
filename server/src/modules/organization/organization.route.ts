@@ -3,6 +3,7 @@ import { auth } from '../../middlewares/auth';
 import requireOrgMember from '../../middlewares/requireOrgMember';
 import requirePermission from '../../middlewares/requirePermission';
 import validateRequest from '../../middlewares/validateRequest';
+import { ApiKeyRoutes } from '../apiKey/apiKey.route';
 import { BillingRoutes } from '../billing/billing.route';
 import { OrgInvitationRoutes } from '../invitation/invitation.route';
 import { MemberRoutes } from '../member/member.route';
@@ -31,6 +32,13 @@ router.patch(
 // Every nested /orgs/:orgId/* router is guarded once here
 router.use('/:orgId/members', auth, requireOrgMember, MemberRoutes);
 router.use('/:orgId/billing', auth, requireOrgMember, BillingRoutes);
+router.use(
+  '/:orgId/api-keys',
+  auth,
+  requireOrgMember,
+  requirePermission('apikeys:manage'),
+  ApiKeyRoutes,
+);
 router.use(
   '/:orgId/invitations',
   auth,
