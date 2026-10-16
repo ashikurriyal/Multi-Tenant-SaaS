@@ -7,7 +7,7 @@ Everything runs on free plans, and no payment card is needed anywhere.
 | Website (`client/`) | Vercel project #1 | `main` |
 | API (`server/`) | Vercel project #2 | `main` (applies database migrations on each deploy) |
 | Database | Prisma Postgres, database `ledgerflow-prod` | — |
-| Email | Mailtrap Sandbox (emails are caught, not delivered) | — |
+| Email | Gmail SMTP with an App Password (real delivery). Development uses the Mailtrap Sandbox | — |
 | Scheduled jobs | GitHub Actions, [`scheduled-jobs.yml`](../.github/workflows/scheduled-jobs.yml) | — |
 
 ```
@@ -51,6 +51,16 @@ npm run db:seed
 
 Values given on the command line win over `server/.env`, so your local `.env` is not used for these two commands.
 
+## Production email (Gmail)
+
+New accounts can't log in until they click the link in their verification email, so production email **must** deliver to real inboxes. The free option without owning a domain is Gmail:
+
+1. Create a Gmail account just for the app (e.g. `ledgerflow.app@gmail.com`), not your personal one.
+2. [myaccount.google.com/security](https://myaccount.google.com/security) → turn on **2-Step Verification**.
+3. [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) → name `LedgerFlow` → **Create**. Copy the 16 letters without spaces; Google shows them only once.
+
+Gmail allows about 500 emails a day. `MAIL_FROM` must use the same address as `SMTP_USER`, or Gmail rejects or spam-folders the mail. Your local `server/.env` stays on Mailtrap, so development never emails real people.
+
 ## 2. API on Vercel
 
 1. [vercel.com](https://vercel.com) → sign in with GitHub → **Add New → Project** → import `Multi-Tenant-SaaS`.
@@ -66,9 +76,11 @@ Values given on the command line win over `server/.env`, so your local `.env` is
    | `CRON_SECRET` | secret #3 |
    | `ENABLE_JOBS` | `false` |
    | `BCRYPT_SALT_ROUNDS` | `12` |
-   | `SMTP_HOST` | `sandbox.smtp.mailtrap.io` |
-   | `SMTP_PORT` | `2525` |
-   | `SMTP_USER` / `SMTP_PASS` | your Mailtrap values (the same as in `server/.env`) |
+   | `SMTP_HOST` | `smtp.gmail.com` |
+   | `SMTP_PORT` | `465` |
+   | `SMTP_USER` | the app's Gmail address (see "Production email" above) |
+   | `SMTP_PASS` | its 16-letter App Password, without spaces |
+   | `MAIL_FROM` | `LedgerFlow <that same Gmail address>` |
 
 4. **Deploy.** When it finishes, open `https://<your-api>.vercel.app/health`. It should show `{"status":"ok","db":"ok"}`.
 5. **Settings → Git → Production Branch:** make sure it's `main`. If your GitHub default branch is `development`, Vercel picks that, and `vercel.json` would then skip every deploy.
@@ -105,9 +117,10 @@ Then **Actions → Scheduled jobs → Run workflow**. The run should be green, a
 ## 6. Check the live site
 
 - [ ] `https://<api>/health` → `{"status":"ok","db":"ok"}`
-- [ ] Register on the website → you land on your organization's dashboard
+- [ ] Register on the website → "Check your inbox" → the verification email arrives (check Spam the first time) → its link logs you in to your organization's dashboard
 - [ ] Reload the page → still logged in (the refresh cookie works through the rewrite)
-- [ ] Invite someone → the email appears in your Mailtrap inbox within a few seconds
+- [ ] Invite someone → the invitation arrives in their real inbox within a few seconds
+- [ ] Log out → **Forgot password?** → the reset email arrives → the new password works
 - [ ] API project → **Logs**: each request line starts with an IP address. It should be **your** IP (look it up on any "what is my IP" site). If every request shows the same Vercel address instead, set `TRUST_PROXY=2` on the API project and redeploy. The login rate limit relies on this.
 
 ## Staying within the free limits
@@ -118,7 +131,7 @@ Then **Actions → Scheduled jobs → Run workflow**. The run should be green, a
 | Vercel Cron (Hobby) | Once a day per job, ±59 min | Not used for frequent jobs; GitHub Actions calls them instead |
 | Prisma Postgres | 200K operations/month (whole workspace, dev included) | The 10-minute email job costs one query when nothing is queued (about 4.3K/month). Check **Usage** in the console now and then |
 | GitHub Actions | Unlimited for public repositories | Keep the repository public. Private repos get 2,000 free minutes/month, and this schedule alone would use them |
-| Mailtrap Sandbox | Monthly email cap | Only invitations and, later, payment emails are sent. At the cap, sending pauses; nothing is charged |
+| Gmail SMTP | About 500 emails/day | Verification, password-reset and invitation emails, plus payment emails later. Link emails are rate-limited (3 per 15 min per IP, one per minute per account) |
 
 GitHub pauses scheduled workflows in repositories with no activity for 60 days. Any push turns them back on.
 

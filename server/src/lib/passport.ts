@@ -22,6 +22,16 @@ passport.use(
       if (user.status === 'BLOCKED') {
         return done(new AppError(403, 'USER_BLOCKED', 'Your account is blocked'));
       }
+      // Checked after the password, so this answer never reveals that an account exists
+      if (!user.emailVerifiedAt) {
+        return done(
+          new AppError(
+            403,
+            'EMAIL_NOT_VERIFIED',
+            'Please verify your email first. Check your inbox for the link we sent.',
+          ),
+        );
+      }
 
       return done(null, {
         id: user.id,
@@ -46,9 +56,16 @@ passport.use(
       try {
         const user = await prisma.user.findUnique({
           where: { id: payload.sub },
-          select: { id: true, name: true, email: true, platformRole: true, status: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            platformRole: true,
+            status: true,
+            emailVerifiedAt: true,
+          },
         });
-        if (!user || user.status === 'BLOCKED') return done(null, false);
+        if (!user || user.status === 'BLOCKED' || !user.emailVerifiedAt) return done(null, false);
 
         return done(null, {
           id: user.id,

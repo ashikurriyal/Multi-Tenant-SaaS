@@ -159,7 +159,7 @@ Every tool below is either already in your stack or is small enough to learn in 
 | Payments | Stripe (test mode): Checkout, Customer Portal, Billing, Billing Meters | Subscriptions, invoices, usage-based overage |
 | Scheduled jobs | node-cron | Retries, usage reporting, rollups, reconciliation |
 | Email | Nodemailer (Mailtrap in development, any SMTP in production) | Invitations and payment emails |
-| DevOps | Git, GitHub Actions, Vercel (client), Render or Railway (server), Neon (PostgreSQL) | CI and deployment |
+| DevOps | Git, GitHub Actions, Vercel (client and API), Prisma Postgres | CI and free deployment (see `docs/deployment.md`) |
 | API tools | Postman, Stripe CLI | Manual testing of endpoints and webhooks |
 
 ### 4.2 New things you will learn in this project
@@ -202,7 +202,7 @@ The API answers users and Stripe quickly. Webhook work is recorded in an inbox t
 ┌─────────────────────┐    │                                                         │              │  meter events)
 │  Customer apps      │    ▼                                                         ▼              │
 │  (x-api-key)        ├──► ┌──────────────────────────────────────────────────────────────────────┴──┐
-└─────────────────────┘    │  Express 5 API (Render / Railway)                                         │
+└─────────────────────┘    │  Express 5 API (Vercel)                                                   │
                            │  passport (local + jwt) · cors · cookie-parser · helmet · rate limit     │
                            │  modules: auth, users, orgs, billing, webhooks, usage, analytics, admin  │
                            │  node-cron jobs: webhook retry, meter report, rollups, MRR, reconcile    │
@@ -210,7 +210,7 @@ The API answers users and Stripe quickly. Webhook work is recorded in an inbox t
                                                               │ Prisma 7 (tenant-scoped client)
                                                               ▼
                                                ┌───────────────────────────────┐
-                                               │  PostgreSQL (Neon)            │
+                                               │  PostgreSQL (Prisma Postgres)│
                                                │  16 tables — see section 11   │
                                                └───────────────────────────────┘
 ```
@@ -426,7 +426,7 @@ Only an Owner may grant or remove the Owner role.
 | --- | --- |
 | Client | Latest Chrome, Firefox, Safari, Edge; works from 360 px wide screens |
 | Server | Node.js 22 LTS, Express 5 |
-| Database | PostgreSQL 16 (Neon in production, local install or Neon branch in development) |
+| Database | PostgreSQL 16 (Prisma Postgres: `ledgerflow-dev` for development, `ledgerflow-prod` for production) |
 | Payments | Stripe test mode only |
 
 ### 8.5 Design constraints
@@ -453,14 +453,21 @@ Only an Owner may grant or remove the Owner role.
 | FR-AUTH-01 | The system must let a visitor register with `name`, `email`, `password` and `organizationName`. In **one database transaction** it must create the user, the organization (with a unique `slug`), an `OWNER` membership and a `FREE` subscription with status `ACTIVE`. |
 | FR-AUTH-02 | Email addresses must be unique (case-insensitive; store them lower-cased). A duplicate returns `409 EMAIL_TAKEN`. |
 | FR-AUTH-03 | Passwords must be at least 8 characters and must be hashed with bcrypt using `BCRYPT_SALT_ROUNDS` (default 12). |
-| FR-AUTH-04 | Login must use the passport-local strategy with `email` and `password`. Wrong credentials return `401 INVALID_CREDENTIALS` with the same message for unknown email and wrong password. A `BLOCKED` user returns `403 USER_BLOCKED`. |
+| FR-AUTH-04 | Login must use the passport-local strategy with `email` and `password`. Wrong credentials return `401 INVALID_CREDENTIALS` with the same message for unknown email and wrong password. A `BLOCKED` user returns `403 USER_BLOCKED`. A correct password for an account whose email is not verified returns `403 EMAIL_NOT_VERIFIED` (checked after the password, so the answer never reveals that an account exists). |
 | FR-AUTH-05 | On login the system must issue an access token (JWT, `JWT_ACCESS_EXPIRES_IN`, default `15m`) containing `sub` (user id), `email` and `platformRole`, and return it in the response body. |
 | FR-AUTH-06 | On login the system must issue a refresh token (JWT, `JWT_REFRESH_EXPIRES_IN`, default `7d`) with a unique `jti` and a `familyId`, store a `refresh_tokens` row whose `id` is the `jti`, and set it as cookie `refreshToken` (`httpOnly`, `secure` in production, `sameSite: 'lax'`, `path: '/api/v1/auth'`). |
 | FR-AUTH-07 | `POST /auth/refresh-token` must verify the cookie's JWT, find its row, and if valid and not revoked: revoke it, issue a new refresh token in the same family, set the new cookie, and return a new access token (rotation). |
 | FR-AUTH-08 | If a refresh token that is already revoked is presented, the system must revoke **every** token in its family and return `401 TOKEN_REUSED` (stolen-token detection). |
 | FR-AUTH-09 | Logout must revoke the current token family and clear the cookie. |
 | FR-AUTH-10 | Protected routes must read the token from `Authorization: Bearer <token>` using passport-jwt (`ExtractJwt.fromAuthHeaderAsBearerToken()`). |
-| FR-AUTH-11 | Login and register must be rate-limited to 5 requests per minute per IP. |
+| FR-AUTH-11 | Login, register, verify-email and reset-password must be rate-limited to 5 requests per minute per IP. Resend-verification and forgot-password: 3 per 15 minutes per IP. Counters are stored in PostgreSQL (`rate_limits`) so the limit holds across server instances. |
+| FR-AUTH-12 | **Email verification (hard gate).** Registration does **not** start a session. In the same transaction it creates a `VERIFY_EMAIL` token (random 32 bytes, stored only as SHA-256 in `email_tokens`, valid 24 hours) and queues a `verify_email` outbox email with the link `/verify-email?token=…` (plus `&next=` when given). Until `users.emailVerifiedAt` is set, login, the access-token guard and refresh all refuse the account. |
+| FR-AUTH-13 | `POST /auth/verify-email` must consume the token atomically (one use only), set `emailVerifiedAt`, and start a session (access token in the body, refresh cookie) — the link proves the person owns the address. Unknown, expired and used tokens all return `410 TOKEN_EXPIRED`. |
+| FR-AUTH-14 | `POST /auth/resend-verification` must always answer with the same message, whether or not the address has an account. For an unverified account it issues a new link (older links stop working), at most once per 60 seconds per account. |
+| FR-AUTH-15 | Registering with an `inviteToken` whose invitation is pending, unexpired and addressed to the same email marks the account verified immediately and starts a session: the invitation link already proves the address. Registering an address held by an **unverified** account replaces that account (and the organization only it belongs to), so nobody can block an address by signing up with it first. |
+| FR-AUTH-16 | `POST /auth/forgot-password` must always answer with the same message. A verified account receives a `RESET_PASSWORD` link (valid 1 hour, `/reset-password?token=…`); an unverified account receives a new verification link instead. At most once per 60 seconds per account. |
+| FR-AUTH-17 | `POST /auth/reset-password` must consume the token atomically, set the new password (same rules as FR-AUTH-03) and revoke **all** of the user's refresh tokens. It does not start a session; the user logs in with the new password. |
+| FR-AUTH-18 | Accounts still unverified 7 days after registration are deleted by the daily `cleanup` job, together with organizations they are the only member of. |
 
 ### 9.2 Users and profile (FR-USER)
 
@@ -577,8 +584,8 @@ Only an Owner may grant or remove the Owner role.
 | ID | Requirement |
 | --- | --- |
 | FR-MAIL-01 | Emails are written to `email_outbox` **inside the same transaction** as the change that causes them, then sent by a job. A crash can therefore never lose an email. |
-| FR-MAIL-02 | Templates: `invitation`, `payment_failed`, `payment_recovered`, `trial_will_end`, `subscription_canceled`. |
-| FR-MAIL-03 | Sending failures are retried up to 5 times, then marked `FAILED`. |
+| FR-MAIL-02 | Templates: `invitation`, `verify_email`, `reset_password`, `payment_failed`, `payment_recovered`, `trial_will_end`, `subscription_canceled`. Links inside a payload are replaced by `[redacted after send]` once delivered. |
+| FR-MAIL-03 | Sending failures are retried up to 5 times, then marked `FAILED`. Each row is claimed atomically before sending, so concurrent senders (scheduled job, after-request send, several instances) deliver it exactly once. Emails caused by a request are also sent right after the response. |
 
 ---
 
@@ -631,6 +638,7 @@ Only an Owner may grant or remove the Owner role.
 | 402 | `PLAN_LIMIT_SEATS` | Seat limit reached |
 | 403 | `FORBIDDEN` | Member lacks the permission |
 | 403 | `USER_BLOCKED` | Account blocked |
+| 403 | `EMAIL_NOT_VERIFIED` | Correct password, but the email address is not verified yet |
 | 403 | `INVITE_EMAIL_MISMATCH` | Logged-in email differs from the invited email |
 | 404 | `NOT_FOUND` / `ORG_NOT_FOUND` | Resource missing, or not in the caller's organization |
 | 409 | `EMAIL_TAKEN` | Email already registered |
@@ -638,6 +646,7 @@ Only an Owner may grant or remove the Owner role.
 | 409 | `ALREADY_SUBSCRIBED` | Checkout requested while a paid subscription is active |
 | 409 | `SEATS_EXCEED_TARGET_PLAN` | Downgrade target has fewer seats than current members |
 | 410 | `INVITE_EXPIRED` | Invitation expired or already used |
+| 410 | `TOKEN_EXPIRED` | Verification or password-reset link unknown, expired or already used |
 | 429 | `PLAN_LIMIT_USAGE` | Free-plan usage limit reached |
 | 429 | `RATE_LIMITED` | Too many requests |
 | 500 | `INTERNAL_ERROR` | Unexpected error (details logged, not returned) |
@@ -648,7 +657,7 @@ Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 
 
 | # | Method | Endpoint | Access | Purpose |
 | --- | --- | --- | --- | --- |
-| 1 | POST | `/auth/register` | Public | Create user, organization, owner membership, Free subscription |
+| 1 | POST | `/auth/register` | Public | Create user, organization, owner membership, Free subscription; send verification email (no session) |
 | 2 | POST | `/auth/login` | Public | Issue access token + refresh cookie |
 | 3 | POST | `/auth/refresh-token` | Refresh cookie | Rotate refresh token, return new access token |
 | 4 | POST | `/auth/logout` | Refresh cookie | Revoke token family, clear cookie |
@@ -686,6 +695,11 @@ Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 
 | 36 | GET | `/admin/tenants` | Super admin | All organizations (search, filter, paginated) |
 | 37 | GET | `/admin/webhook-events?status=FAILED` | Super admin | Webhook inbox |
 | 38 | GET | `/health` | Public | `{ status: "ok", db: "ok" }` |
+| 39 | POST | `/auth/verify-email` | Public (token) | Verify the address and start a session |
+| 40 | POST | `/auth/resend-verification` | Public | Send a new verification link (same answer for every email) |
+| 41 | POST | `/auth/forgot-password` | Public | Send a password-reset link (same answer for every email) |
+| 42 | POST | `/auth/reset-password` | Public (token) | Set a new password; revoke all sessions |
+| 43 | GET, POST | `/internal/jobs/:name` | `Bearer CRON_SECRET` | Run a scheduled job (`send-emails`, `cleanup`); 404 when no secret is configured |
 
 ### 10.4 Endpoint details (main flows)
 
@@ -702,19 +716,37 @@ Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 
 ```
 
 ```json
-// Response 201
+// Response 201 — no session yet; a verification email is on its way
 {
   "success": true,
   "statusCode": 201,
-  "message": "Account created successfully",
+  "message": "Account created. Check your inbox to verify your email.",
   "data": {
     "user": { "id": "6f1c…", "name": "Sarah Khan", "email": "sarah@acme.com", "platformRole": "USER" },
-    "organization": { "id": "9a2e…", "name": "Acme Inc", "slug": "acme-inc", "role": "OWNER" }
+    "organization": { "id": "9a2e…", "name": "Acme Inc", "slug": "acme-inc", "role": "OWNER" },
+    "verificationRequired": true
   }
 }
 ```
 
-Validation: `name` 2–60 chars, valid `email`, `password` ≥ 8 chars, `organizationName` 2–80 chars. The slug is generated from the name; if taken, a short random suffix is added (`acme-inc-x7k2`).
+Validation: `name` 2–60 chars, valid `email`, `password` 8–72 chars, `organizationName` 2–80 chars. Optional: `inviteToken` (FR-AUTH-15) and `next`, a same-site path such as `/invite/abc` carried into the verification link. The slug is generated from the name; if taken (or equal to a top-level route such as `login`), a short random suffix is added (`acme-inc-x7k2`).
+
+When `inviteToken` matches a pending invitation for the same email, the response has `"verificationRequired": false`, an `accessToken`, and sets the refresh cookie, exactly like login.
+
+#### 1b. Verify email — `POST /api/v1/auth/verify-email`
+
+```json
+// Request (token from the emailed link)
+{ "token": "Qm9…" }
+```
+
+```json
+// Response 200 (sets the refresh cookie)
+{ "success": true, "statusCode": 200, "message": "Email verified",
+  "data": { "accessToken": "eyJhbGciOi…", "user": { "id": "6f1c…", "name": "Sarah Khan", "email": "sarah@acme.com", "platformRole": "USER" } } }
+```
+
+Resend, forgot-password and reset-password follow the same pattern; resend and forgot-password always return `"If an account exists for this email, we have sent a link to it. Check your inbox."`
 
 #### 2. Login — `POST /api/v1/auth/login`
 
@@ -736,7 +768,7 @@ Validation: `name` 2–60 chars, valid `email`, `password` ≥ 8 chars, `organiz
 }
 ```
 
-The refresh token is **only** in the cookie, never in the body.
+The refresh token is **only** in the cookie, never in the body. An unverified account gets `403 EMAIL_NOT_VERIFIED` instead (FR-AUTH-04).
 
 #### 3. Refresh — `POST /api/v1/auth/refresh-token`
 
@@ -917,8 +949,23 @@ erDiagram
     string password
     UserStatus status
     PlatformRole platformRole
+    datetime emailVerifiedAt "nullable"
     datetime createdAt
     datetime updatedAt
+  }
+  email_tokens {
+    string id PK
+    string userId FK
+    EmailTokenPurpose purpose
+    string tokenHash UK
+    datetime expiresAt
+    datetime usedAt "nullable"
+    datetime createdAt
+  }
+  rate_limits {
+    string key PK
+    int hits
+    datetime resetAt
   }
   organizations {
     string id PK
@@ -1091,6 +1138,7 @@ erDiagram
   organizations |o--o{ audit_logs : "organizationId"
   users |o--o{ audit_logs : "actorId"
   organizations |o--o{ email_outbox : "organizationId"
+  users ||--o{ email_tokens : "userId"
 ```
 
 ### 11.2 Relationships
@@ -1102,6 +1150,7 @@ erDiagram
 | organizations | invitations | 1 → many | Pending and accepted invitations |
 | users | invitations | 1 → many | Who sent the invitation (`invitedById`) |
 | users | refresh_tokens | 1 → many | One row per issued refresh token |
+| users | email_tokens | 1 → many | Verification and password-reset links sent to the user |
 | organizations | subscriptions | 1 → 0..1 | One subscription per organization (`organizationId` is unique) |
 | plans | subscriptions | 1 → many | Which plan the subscription is on |
 | organizations | invoices | 1 → many | Billing history |
@@ -1118,17 +1167,18 @@ erDiagram
 | users | audit_logs | 0..1 → many | Null when the actor is Stripe or a job |
 | organizations | email_outbox | 0..1 → many | Null for emails not tied to an organization |
 
-`stripe_events` has no foreign keys on purpose: it is written **before** LedgerFlow knows which organization an event belongs to.
+`stripe_events` has no foreign keys on purpose: it is written **before** LedgerFlow knows which organization an event belongs to. `rate_limits` has none either: its keys are request attributes (e.g. the client IP), not database rows.
 
 ### 11.3 Data dictionary
 
 | Table | Purpose | Important rules |
 | --- | --- | --- |
-| `users` | People who log in | `email` unique, stored lower-case; `password` is a bcrypt hash; `platformRole` `SUPER_ADMIN` only for LedgerFlow staff |
+| `users` | People who log in | `email` unique, stored lower-case; `password` is a bcrypt hash; `emailVerifiedAt` null until the address is verified (no login before that); `platformRole` `SUPER_ADMIN` only for LedgerFlow staff |
 | `organizations` | Tenants | `slug` unique and permanent; `stripeCustomerId` set at first checkout |
 | `memberships` | User ↔ organization with a role | Unique `(userId, organizationId)`; at least one `OWNER` per organization |
 | `invitations` | Invitations by email | Token stored as SHA-256 `tokenHash`; expires after 7 days; `acceptedAt` set once |
 | `refresh_tokens` | Issued refresh tokens | `id` = JWT `jti`; `familyId` groups one login's rotations; `revokedAt` marks used/revoked |
+| `email_tokens` | One-time links sent by email | `purpose` `VERIFY_EMAIL` (24 h) or `RESET_PASSWORD` (1 h); only the SHA-256 `tokenHash` is stored; `usedAt` set once; a new link deletes older unused ones; removed by `cleanup` a day after use or expiry |
 | `plans` | Free, Pro, Business | Mirrors Stripe Prices; money in cents; overage in micros |
 | `subscriptions` | Each organization's current subscription | One per organization; changed only by webhooks, reconciliation and the Free-period job |
 | `invoices` | Stripe invoices | Upserted by `stripeInvoiceId`; never edited by users |
@@ -1139,7 +1189,8 @@ erDiagram
 | `usage_daily_rollups` | Daily totals for charts | Rebuilt by job; dashboards read this, not raw events |
 | `mrr_snapshots` | Daily MRR per organization | Written by job; source for all revenue analytics |
 | `audit_logs` | Who changed what | Insert-only |
-| `email_outbox` | Emails waiting to be sent | Written in the same transaction as the change; sent by job |
+| `email_outbox` | Emails waiting to be sent | Written in the same transaction as the change; sent right after the request and by the `send-emails` job; each row claimed atomically before sending |
+| `rate_limits` | Fixed-window request counters | `key` = limiter prefix + client key (e.g. `auth:203.0.113.7`); one atomic upsert per counted request; expired windows removed by `cleanup` |
 
 ### 11.4 Enumerations
 
@@ -1152,22 +1203,29 @@ erDiagram
 | `InvoiceStatus` | `DRAFT`, `OPEN`, `PAID`, `UNCOLLECTIBLE`, `VOID` |
 | `WebhookEventStatus` | `RECEIVED`, `PROCESSING`, `PROCESSED`, `FAILED` |
 | `EmailStatus` | `PENDING`, `SENT`, `FAILED` |
+| `EmailTokenPurpose` | `VERIFY_EMAIL`, `RESET_PASSWORD` |
 
 ### 11.5 Prisma schema
 
-This schema has been validated with Prisma 7.10 and loaded into PostgreSQL 16 (16 tables, 20 foreign keys). It uses the same setup as Prisma Press: `prisma-client` generator with output in `generated/prisma`, and the database URL in `prisma.config.ts`.
+This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by three migrations (`init`, `rate_limits`, `email_verification`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
+
+The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out.
 
 ```prisma
+// LedgerFlow — complete Prisma schema in one file, for reading.
+// The app keeps the same schema split into one file per model: server/prisma/schema/
+
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-// ======================= ENUMS =======================
+// ================ ENUMS =================
 
 enum UserStatus {
   ACTIVE
@@ -1216,23 +1274,31 @@ enum EmailStatus {
   FAILED
 }
 
-// ================= IDENTITY & TENANCY =================
+enum EmailTokenPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// ========== IDENTITY & TENANCY ==========
 
 model User {
-  id           String       @id @default(uuid())
-  name         String
-  email        String       @unique
-  password     String // bcrypt hash
-  status       UserStatus   @default(ACTIVE)
-  platformRole PlatformRole @default(USER)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String       @id @default(uuid())
+  name            String
+  email           String       @unique
+  password        String // bcrypt hash
+  status          UserStatus   @default(ACTIVE)
+  platformRole    PlatformRole @default(USER)
+  // null until the user proves they own the address; login is refused until then
+  emailVerifiedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   memberships   Membership[]
   invitations   Invitation[]   @relation("InvitedBy")
   refreshTokens RefreshToken[]
   apiKeys       ApiKey[]       @relation("ApiKeyCreatedBy")
   auditLogs     AuditLog[]     @relation("AuditActor")
+  emailTokens   EmailToken[]
 
   @@map("users")
 }
@@ -1308,7 +1374,25 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-// ======================= BILLING =======================
+// One-time links sent by email (verify address, reset password). Only the SHA-256 of
+// the token is stored; the raw value exists only in the email
+model EmailToken {
+  id        String            @id @default(uuid())
+  userId    String
+  purpose   EmailTokenPurpose
+  tokenHash String            @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("email_tokens")
+}
+
+// =============== BILLING ================
 
 model Plan {
   id                   String   @id @default(uuid())
@@ -1390,7 +1474,7 @@ model StripeEvent {
   @@map("stripe_events")
 }
 
-// ======================== USAGE ========================
+// ================ USAGE =================
 
 model ApiKey {
   id             String    @id @default(uuid())
@@ -1456,7 +1540,7 @@ model UsageDailyRollup {
   @@map("usage_daily_rollups")
 }
 
-// ================= ANALYTICS & OPERATIONS =================
+// ======== ANALYTICS & OPERATIONS ========
 
 model MrrSnapshot {
   day            DateTime @db.Date
@@ -1506,6 +1590,17 @@ model EmailOutbox {
   @@index([status, createdAt])
   @@map("email_outbox")
 }
+
+// Fixed-window counters for express-rate-limit, shared by every server instance
+// (Vercel runs several, so in-memory counters would each see only part of the traffic)
+model RateLimit {
+  key     String   @id // e.g. auth:203.0.113.7
+  hits    Int
+  resetAt DateTime
+
+  @@index([resetAt])
+  @@map("rate_limits")
+}
 ```
 
 ```ts
@@ -1514,7 +1609,7 @@ import 'dotenv/config';
 import { defineConfig, env } from 'prisma/config';
 
 export default defineConfig({
-  schema: 'prisma/schema.prisma',
+  schema: 'prisma/schema', // folder: one .prisma file per model
   migrations: { path: 'prisma/migrations', seed: 'tsx prisma/seed.ts' },
   datasource: { url: env('DATABASE_URL') },
 });
@@ -1525,7 +1620,7 @@ export default defineConfig({
 `prisma/seed.ts` must create:
 
 1. The three plans (after creating matching Products and Prices in Stripe test mode with a one-off script, `scripts/createStripePrices.ts`, which prints the price ids to paste into `.env`).
-2. A super admin user.
+2. A super admin user (from `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`), already verified. Seeded demo users are verified too, so they can log in without an email.
 3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit.
 4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load.
 
@@ -1621,18 +1716,19 @@ Put this example in a script (`npm run check:metrics`) that runs the functions i
 
 ## 13. Background jobs
 
-All jobs run with node-cron inside the API process when `ENABLE_JOBS=true`. Each job must be safe to run twice (idempotent) and must log start, finish and counts.
+Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local development) they run with node-cron when `ENABLE_JOBS=true`. In production on Vercel nothing keeps running between requests, so `ENABLE_JOBS=false` and each job is a route, `GET|POST /api/v1/internal/jobs/:name` with `Authorization: Bearer <CRON_SECRET>`, called by GitHub Actions (`.github/workflows/scheduled-jobs.yml`): frequent jobs every 10 minutes, daily jobs once a day (Vercel's free cron allows only daily jobs). Each job must be safe to run twice, even concurrently on different instances, and must log counts.
 
 | Job | Schedule (UTC) | What it does |
 | --- | --- | --- |
 | `retry-webhooks` | Every minute | Process `stripe_events` with status `RECEIVED` or `FAILED`, `attempts < 5`, `nextAttemptAt ≤ now`; reset `PROCESSING` rows older than 10 minutes to `FAILED` |
-| `send-emails` | Every minute | Send `email_outbox` rows with status `PENDING` (or `FAILED` with `attempts < 5`) |
+| `send-emails` | Every minute (every 10 min in production) | Send `email_outbox` rows with status `PENDING` or `FAILED` and `attempts < 5`; claim each row by bumping `attempts` atomically |
 | `report-usage` | Every 5 minutes | For paid organizations, send unreported `usage_events` to Stripe Billing Meters (identifier = usage event id, so Stripe ignores duplicates); set `reportedToStripeAt` |
 | `usage-rollup` | Every hour at :05 | Recompute today's and yesterday's `usage_daily_rollups` from `usage_events` (upsert) |
 | `roll-free-periods` | Daily 00:01 | Move Free subscriptions whose `currentPeriodEnd` has passed to the next calendar month |
 | `mrr-snapshot` | Daily 00:15 | Write today's `mrr_snapshots` row for every organization |
 | `reconcile-stripe` | Daily 01:00 | Compare subscriptions with Stripe and correct mismatches (FR-WH-09) |
 | `verify-usage-counters` | Daily 01:30 | Compare `usage_counters.units` with `SUM(usage_events.quantity)` for the current period; fix and log any drift |
+| `cleanup` | Daily 03:15 | Delete accounts unverified for 7 days (and organizations only they belong to), email tokens used or expired for more than a day, and ended `rate_limits` windows |
 
 ---
 
@@ -1642,14 +1738,16 @@ All jobs run with node-cron inside the API process when `ENABLE_JOBS=true`. Each
 
 | ID | Requirement |
 | --- | --- |
-| NFR-SEC-01 | Passwords hashed with bcrypt (cost 12). API keys, invitation tokens hashed with SHA-256. Refresh tokens tracked by `jti` and revocable. |
+| NFR-SEC-01 | Passwords hashed with bcrypt (cost 12). API keys, invitation tokens, email-verification and password-reset tokens hashed with SHA-256. Refresh tokens tracked by `jti` and revocable. |
 | NFR-SEC-02 | Access token kept in memory on the client (Redux state), never in `localStorage`. Refresh token only in an `httpOnly` cookie scoped to `/api/v1/auth`. |
 | NFR-SEC-03 | Every `/orgs/:orgId` route checks membership (404 if none) and permission (403 if missing). Tenant data is read and written only through the tenant-scoped Prisma client. |
 | NFR-SEC-04 | All input validated with Zod; unknown fields stripped. |
 | NFR-SEC-05 | helmet security headers; CORS allows only `CLIENT_URL` with `credentials: true`; JSON body limit 100 kb. |
-| NFR-SEC-06 | Rate limits: auth 5/min/IP, general API 300/min/IP, usage 100/sec/API key. |
+| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Counters in PostgreSQL, shared by all instances. |
 | NFR-SEC-07 | Secrets only in environment variables. `.env.example` committed; `.env` never. Separate Stripe keys and webhook secrets for development and production. |
 | NFR-SEC-08 | Logs never contain passwords, tokens, API keys or full webhook payloads. |
+| NFR-SEC-09 | No account can act until its email address is verified (FR-AUTH-12). Endpoints that send links answer identically for every address, so they can't be used to discover which emails have accounts. |
+| NFR-SEC-10 | Scheduled-job routes require `CRON_SECRET` (compared in constant time) and don't exist when it isn't configured. |
 
 ### 14.2 Performance (NFR-PERF)
 
@@ -1691,7 +1789,7 @@ All jobs run with node-cron inside the API process when `ENABLE_JOBS=true`. Each
 | Variable | Example | Purpose |
 | --- | --- | --- |
 | `NODE_ENV` | `development` | Environment |
-| `PORT` | `5000` | HTTP port |
+| `PORT` | `5050` | HTTP port (not 5000: macOS AirPlay Receiver uses it) |
 | `DATABASE_URL` | `postgresql://…` | PostgreSQL connection |
 | `CLIENT_URL` | `http://localhost:3000` | Allowed CORS origin; used in email links and Stripe redirect URLs |
 | `BCRYPT_SALT_ROUNDS` | `12` | Password hashing cost |
@@ -1702,16 +1800,19 @@ All jobs run with node-cron inside the API process when `ENABLE_JOBS=true`. Each
 | `STRIPE_SECRET_KEY` | `sk_test_…` | Stripe API |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Webhook signature verification |
 | `STRIPE_METER_EVENT_NAME` | `ledgerflow_units` | Billing Meter event name |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Mailtrap values | Email sending |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Mailtrap Sandbox (development), Gmail SMTP with an App Password (production) | Email sending. Required in production; without them in development, emails are rendered but not delivered |
 | `MAIL_FROM` | `LedgerFlow <no-reply@ledgerflow.dev>` | Sender |
-| `ENABLE_JOBS` | `true` | Run node-cron jobs in this process |
+| `ENABLE_JOBS` | `true` (`false` on Vercel) | Run node-cron jobs in this process |
+| `CRON_SECRET` | 64 random chars | Bearer secret for `/internal/jobs/*`; required in production |
+| `TRUST_PROXY` | `1` | Proxies in front of the API whose `X-Forwarded-For` is trusted (client IP for rate limits and logs) |
+| `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` | — | Used by the seed only |
 | `GRACE_PERIOD_DAYS` | `7` | Past-due grace period |
 
 ### 15.2 Client (`client/.env.local`)
 
 | Variable | Example | Purpose |
 | --- | --- | --- |
-| `API_URL` | `http://localhost:5000` | Target of the `/api/*` rewrite (server-side only) |
+| `API_URL` | `http://localhost:5050` | Target of the `/api/*` rewrite (server-side only) |
 | `NEXT_PUBLIC_APP_NAME` | `LedgerFlow` | Display name |
 
 ---
@@ -1743,7 +1844,7 @@ import { notFound } from './middlewares/notFound';
 import { prisma } from './lib/prisma';
 
 const app = express();
-app.set('trust proxy', 1); // behind Render/Railway's proxy, so rate limits see the real client IP
+app.set('trust proxy', config.trustProxy); // behind Vercel and the Next.js rewrite, so rate limits see the client IP
 
 app.use(helmet());
 app.use(cors({ origin: config.clientUrl, credentials: true }));
@@ -2269,7 +2370,10 @@ useEffect(() => {
 | --- | --- | --- | --- |
 | `/` | Everyone | Landing page (Magic UI accents) | Static, fast |
 | `/pricing` | Everyone | Plan cards from `GET /plans` | Server-rendered |
-| `/login`, `/register` | Visitors | Forms (React Hook Form + Zod) | Demo-account buttons on login |
+| `/login`, `/register` | Visitors | Forms (React Hook Form + Zod) | Register ends on a "Check your inbox" screen with resend; login shows a resend action for `EMAIL_NOT_VERIFIED`; "Forgot password?" link; demo-account buttons on login |
+| `/verify-email` | Visitors | Verifies the token from the link | Logs in and continues to `?next=` or the first organization; expired link → resend |
+| `/forgot-password`, `/reset-password` | Visitors | Request a reset link; set a new password from the link | Same confirmation for every email; after reset → login |
+| `/onboarding` | Logged in, no organization | Create an organization | After leaving the last organization |
 | `/invite/[token]` | Everyone | Org name, role, accept button | Prompts login/register if needed |
 | `/[orgSlug]/dashboard` | Members | Usage vs quota, 30-day chart, plan badge | Banner at 80% and 100% usage; past-due banner |
 | `/[orgSlug]/usage` | Members | Daily usage table and chart with date range | Range stored in URL search params |
@@ -2371,7 +2475,10 @@ Stripe test cards: `4242 4242 4242 4242` (succeeds), `4000 0000 0000 0341` (atta
 
 ### 19.2 Auth, tenancy and roles
 
-- [ ] Register creates user, organization, OWNER membership and Free subscription (check in Prisma Studio)
+- [ ] Register creates user, organization, OWNER membership and Free subscription (check in Prisma Studio), sends a verification email, and does **not** log in
+- [ ] Logging in before verifying → `403 EMAIL_NOT_VERIFIED`; the emailed link logs in; using it again → `410 TOKEN_EXPIRED`
+- [ ] Forgot password → reset link → new password works, old one doesn't, other sessions end
+- [ ] Registering from an invitation link with the invited email skips verification and lands in the organization
 - [ ] Duplicate email → `409 EMAIL_TAKEN`; wrong password → `401 INVALID_CREDENTIALS`
 - [ ] 6 quick login attempts → `429 RATE_LIMITED`
 - [ ] Refresh returns a new token and a new cookie; reusing the **old** cookie → `401 TOKEN_REUSED`, and then even the new cookie fails
@@ -2432,15 +2539,15 @@ When you are ready, add Jest + Supertest in this order: `shared/` functions (sta
 
 ### 20.1 Hosting
 
+Everything runs on free plans; the click-by-click setup is in [`docs/deployment.md`](./deployment.md).
+
 | Component | Host | Notes |
 | --- | --- | --- |
-| `client` | Vercel | Set `API_URL` to the server URL (used by the rewrite) |
-| `server` | Render (Starter) or Railway | Must not sleep — node-cron jobs run in this process |
-| PostgreSQL | Neon | Use the pooled connection string for the app |
-| Email | Mailtrap (dev), any SMTP (prod) | — |
-| Stripe | Test mode | Dashboard → Developers → Webhooks → add `https://<server>/api/v1/webhooks/stripe` with the 7 events from section 12.2; copy its signing secret into production env |
-
-Server build command: `npm ci && npx prisma generate && npm run build`. Pre-deploy / start: `npx prisma migrate deploy && node dist/server.js`.
+| `client` | Vercel (Hobby) | `API_URL` points at the API; deploys from `main` only (`client/vercel.json`) |
+| `server` | Vercel (Hobby), Express as one function | `src/app.ts` is the entry; `npm run db:deploy` runs migrations on each deploy; scheduled jobs are routes called by GitHub Actions |
+| PostgreSQL | Prisma Postgres | `ledgerflow-prod`, direct `postgres://` URL with `sslmode=verify-full` |
+| Email | Mailtrap Sandbox (dev), Gmail SMTP with an App Password (prod) | With the email-verification gate, production email must work or nobody can sign up |
+| Stripe | Test mode | Dashboard → Developers → Webhooks → add `https://<api>/api/v1/webhooks/stripe` with the 7 events from section 12.2; copy its signing secret into production env |
 
 ### 20.2 GitHub Actions
 
@@ -2475,7 +2582,7 @@ jobs:
       - run: npm run build
 ```
 
-Vercel and Render deploy automatically from `main` once CI passes (enable "wait for CI" / branch protection on GitHub).
+Vercel deploys both projects automatically from `main`. Branch rulesets on GitHub require the three CI checks before merging into `development` or `main`.
 
 ### 20.3 Security checklist
 

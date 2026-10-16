@@ -1,13 +1,17 @@
+// LedgerFlow — complete Prisma schema in one file, for reading.
+// The app keeps the same schema split into one file per model: server/prisma/schema/
+
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-// ======================= ENUMS =======================
+// ================ ENUMS =================
 
 enum UserStatus {
   ACTIVE
@@ -56,23 +60,31 @@ enum EmailStatus {
   FAILED
 }
 
-// ================= IDENTITY & TENANCY =================
+enum EmailTokenPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// ========== IDENTITY & TENANCY ==========
 
 model User {
-  id           String       @id @default(uuid())
-  name         String
-  email        String       @unique
-  password     String // bcrypt hash
-  status       UserStatus   @default(ACTIVE)
-  platformRole PlatformRole @default(USER)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String       @id @default(uuid())
+  name            String
+  email           String       @unique
+  password        String // bcrypt hash
+  status          UserStatus   @default(ACTIVE)
+  platformRole    PlatformRole @default(USER)
+  // null until the user proves they own the address; login is refused until then
+  emailVerifiedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   memberships   Membership[]
   invitations   Invitation[]   @relation("InvitedBy")
   refreshTokens RefreshToken[]
   apiKeys       ApiKey[]       @relation("ApiKeyCreatedBy")
   auditLogs     AuditLog[]     @relation("AuditActor")
+  emailTokens   EmailToken[]
 
   @@map("users")
 }
@@ -148,7 +160,25 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-// ======================= BILLING =======================
+// One-time links sent by email (verify address, reset password). Only the SHA-256 of
+// the token is stored; the raw value exists only in the email
+model EmailToken {
+  id        String            @id @default(uuid())
+  userId    String
+  purpose   EmailTokenPurpose
+  tokenHash String            @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("email_tokens")
+}
+
+// =============== BILLING ================
 
 model Plan {
   id                   String   @id @default(uuid())
@@ -230,7 +260,7 @@ model StripeEvent {
   @@map("stripe_events")
 }
 
-// ======================== USAGE ========================
+// ================ USAGE =================
 
 model ApiKey {
   id             String    @id @default(uuid())
@@ -296,7 +326,7 @@ model UsageDailyRollup {
   @@map("usage_daily_rollups")
 }
 
-// ================= ANALYTICS & OPERATIONS =================
+// ======== ANALYTICS & OPERATIONS ========
 
 model MrrSnapshot {
   day            DateTime @db.Date
@@ -345,4 +375,15 @@ model EmailOutbox {
 
   @@index([status, createdAt])
   @@map("email_outbox")
+}
+
+// Fixed-window counters for express-rate-limit, shared by every server instance
+// (Vercel runs several, so in-memory counters would each see only part of the traffic)
+model RateLimit {
+  key     String   @id // e.g. auth:203.0.113.7
+  hits    Int
+  resetAt DateTime
+
+  @@index([resetAt])
+  @@map("rate_limits")
 }

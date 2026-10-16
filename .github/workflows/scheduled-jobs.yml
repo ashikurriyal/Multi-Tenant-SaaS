@@ -13,6 +13,7 @@ on:
   schedule:
     # GitHub may start scheduled runs a few minutes late; every job is safe to run twice
     - cron: '*/10 * * * *'
+    - cron: '15 3 * * *' # daily cleanup
   workflow_dispatch:
 
 concurrency:
@@ -33,3 +34,20 @@ jobs:
           curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
             -X POST -H "Authorization: Bearer $CRON_SECRET" \
             "$API_BASE_URL/api/v1/internal/jobs/send-emails"
+
+  cleanup:
+    # Daily schedule, or a manual run
+    if: >-
+      ${{ vars.API_BASE_URL != '' &&
+          (github.event_name == 'workflow_dispatch' || github.event.schedule == '15 3 * * *') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run cleanup
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
+            -X POST -H "Authorization: Bearer $CRON_SECRET" \
+            "$API_BASE_URL/api/v1/internal/jobs/cleanup"
