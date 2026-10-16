@@ -59,3 +59,43 @@ export async function ensureStripeCustomer(
   await stripe.customers.update(customer.id, { email: billingEmail });
   return customer.id;
 }
+
+// Subscription items: the licensed one carries the plan, the metered one the overage
+export function splitSubscriptionItems(
+  items: { id: string; price: { recurring: { usage_type?: string } | null } }[],
+) {
+  const flat = items.find((item) => item.price.recurring?.usage_type !== 'metered');
+  const metered = items.find((item) => item.price.recurring?.usage_type === 'metered');
+  if (!flat) throw new Error('Subscription has no licensed item');
+  return { flat, metered };
+}
+
+/**
+ * "Now" as Stripe sees it for this subscription. Test-mode subscriptions can run on a test
+ * clock (simulated time); prorations must use that time, or previews are computed for the
+ * wrong moment. Live subscriptions never have one.
+ */
+export async function stripeNow(subscription: { test_clock?: string | { id: string } | null }) {
+  const clock = subscription.test_clock;
+  if (!clock) return Math.floor(Date.now() / 1000);
+  const id = typeof clock === 'string' ? clock : clock.id;
+  return (await getStripe().testHelpers.testClocks.retrieve(id)).frozen_time;
+}
+
+const isKeyInUse = (err: unknown) => (err as { code?: string }).code === 'idempotency_key_in_use';
+
+/**
+ * Runs a Stripe call made with an idempotency key. If the same key is still being
+ * processed (a double click), Stripe asks us to try again; once the first request is done
+ * it returns that request's result, so both clicks get the same answer.
+ */
+export async function withIdempotentRetry<T>(call: () => Promise<T>, attempts = 5): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await call();
+    } catch (err) {
+      if (i >= attempts || !isKeyInUse(err)) throw err;
+      await new Promise((r) => setTimeout(r, 750 * i));
+    }
+  }
+}

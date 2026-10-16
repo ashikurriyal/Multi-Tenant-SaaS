@@ -516,11 +516,11 @@ Only an Owner may grant or remove the Owner role.
 | FR-BILL-01 | `GET /orgs/:orgId/billing/subscription` must return plan, status, period dates, `cancelAtPeriodEnd`, `graceEndsAt` and access level. |
 | FR-BILL-02 | `POST /billing/checkout-session` with `planCode` (`PRO` or `BUSINESS`) must: create the Stripe Customer if the organization has none and save `stripeCustomerId` **immediately** (so abandoned checkouts never create duplicate customers; the create call uses the idempotency key `ledgerflow-customer-<orgId>` and only organization data, so simultaneous clicks get the same customer); create a Checkout Session in `subscription` mode with the plan's flat price (quantity 1) and metered overage price; put `organizationId` and `planCode` in session and subscription `metadata` and `client_reference_id`; return the Checkout URL. It is only allowed when the organization holds no paid subscription (`INCOMPLETE`, `TRIALING`, `ACTIVE`, `PAST_DUE` or `UNPAID` with a `stripeSubscriptionId` → `409 ALREADY_SUBSCRIBED`). A plan without Stripe prices → `503 BILLING_NOT_CONFIGURED`. |
 | FR-BILL-03 | The success page must **not** activate anything. The client polls `GET /billing/subscription` until status becomes `ACTIVE` or `TRIALING` (stop after 30 seconds). |
-| FR-BILL-04 | `POST /billing/change-plan/preview` must return the prorated amount due now and the next invoice total, using Stripe's invoice preview. |
-| FR-BILL-05 | `POST /billing/change-plan` must update the Stripe subscription's price with proration. It must accept an `Idempotency-Key` header and pass it to Stripe. The local database changes only when the resulting webhook arrives. |
-| FR-BILL-06 | Downgrading must be refused with `409 SEATS_EXCEED_TARGET_PLAN` if the organization has more members than the target plan allows. |
+| FR-BILL-04 | `POST /billing/change-plan/preview` must return the prorated amount due now (`amountDueNowCents`, negative = credit), the new monthly price, and a `prorationDate`, using Stripe's invoice preview with `proration_behavior: always_invoice`. Only for an `ACTIVE` or `TRIALING` paid subscription (`409 NOT_SUBSCRIBED` otherwise, `409 PAYMENT_FAILED` while past due); the same plan → `409 CONFLICT`; moving to Free is done by cancelling in the Customer Portal. |
+| FR-BILL-05 | `POST /billing/change-plan` must update the Stripe subscription's flat and metered prices with proration charged immediately (`always_invoice`, `payment_behavior: error_if_incomplete`, so a declined card changes nothing → `402 PAYMENT_FAILED`). It must require an `Idempotency-Key` header (8–100 characters) and pass it to Stripe: a repeated request returns the first one's result (a request still in progress is waited for), the same key with a different plan → `409 IDEMPOTENCY_KEY_REUSED`. A `prorationDate` from a preview less than an hour old is used, so the charge equals the preview. The local database changes only when the resulting webhook arrives (`202`). |
+| FR-BILL-06 | Downgrading (preview and apply) must be refused with `409 SEATS_EXCEED_TARGET_PLAN` if members plus pending invitations exceed the target plan's seat limit. |
 | FR-BILL-07 | `POST /billing/portal-session` must return a Stripe Customer Portal URL (update card, update billing email and address, download invoices, cancel at period end). The portal configuration is created by `npm run stripe:setup`; plan changes are **not** offered there, because they go through FR-BILL-04…06 (preview and seat checks). Without a Stripe customer → `409 NO_BILLING_ACCOUNT`. |
-| FR-BILL-08 | `GET /billing/invoices` must list invoices newest first with amount, status, period and Stripe-hosted invoice URL. |
+| FR-BILL-08 | `GET /billing/invoices` must list invoices newest first (paginated) with amount due and paid, status, period, paid date and Stripe-hosted invoice URL, from the local `invoices` table kept current by invoice webhooks. |
 | FR-BILL-09 | Every billing change must write an audit log entry (actor = user for requests, `null` for Stripe-driven changes). |
 
 ### 9.7 Stripe webhooks (FR-WH)
@@ -637,6 +637,7 @@ Only an Owner may grant or remove the Owner role.
 | 401 | `TOKEN_REUSED` | Revoked refresh token presented; family revoked |
 | 401 | `INVALID_API_KEY` | Unknown or revoked API key |
 | 402 | `PLAN_LIMIT_SEATS` | Seat limit reached |
+| 402 | `PAYMENT_FAILED` | Card declined during a plan change (nothing changed), or plan change attempted while past due (409) |
 | 403 | `FORBIDDEN` | Member lacks the permission |
 | 403 | `USER_BLOCKED` | Account blocked |
 | 403 | `EMAIL_NOT_VERIFIED` | Correct password, but the email address is not verified yet |
@@ -647,6 +648,8 @@ Only an Owner may grant or remove the Owner role.
 | 409 | `ALREADY_SUBSCRIBED` | Checkout requested while a paid subscription is active |
 | 409 | `SEATS_EXCEED_TARGET_PLAN` | Downgrade target has fewer seats than current members |
 | 409 | `NO_BILLING_ACCOUNT` | Customer Portal requested before the organization's first checkout |
+| 409 | `NOT_SUBSCRIBED` | Plan change requested without an active paid subscription |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` was sent for a different request |
 | 410 | `INVITE_EXPIRED` | Invitation expired or already used |
 | 410 | `TOKEN_EXPIRED` | Verification or password-reset link unknown, expired or already used |
 | 429 | `PLAN_LIMIT_USAGE` | Free-plan usage limit reached |
@@ -866,10 +869,24 @@ The client does `window.location.href = data.url`. Stripe sends the user back to
 ```json
 // Request
 { "planCode": "BUSINESS" }
-// Response 200
-{ "success": true, "statusCode": 200, "message": "Preview calculated",
-  "data": { "amountDueNowCents": 7500, "nextInvoiceTotalCents": 19900, "currency": "usd" } }
+// Response 200 (half-way through a Pro month)
+{ "success": true, "statusCode": 200, "message": "Plan change preview",
+  "data": { "currentPlan": { "code": "PRO", "name": "Pro" },
+            "targetPlan": { "code": "BUSINESS", "name": "Business", "monthlyPriceCents": 19900 },
+            "isUpgrade": true, "amountDueNowCents": 7500, "currency": "usd",
+            "nextMonthlyCents": 19900, "prorationDate": 1792178391 } }
 ```
+
+Apply with the same `planCode`, the `prorationDate` from the preview (so the charge equals the preview) and a client-generated `Idempotency-Key` header:
+
+```http
+POST /api/v1/orgs/:orgId/billing/change-plan
+Idempotency-Key: 3f2b9c4e-…
+{ "planCode": "BUSINESS", "prorationDate": 1792178391 }
+→ 202 { "data": { "planCode": "BUSINESS", "status": "pending" } }
+```
+
+`202` means Stripe accepted the change; the plan switches when `customer.subscription.updated` arrives. A negative `amountDueNowCents` (downgrade) is a credit Stripe applies to the next invoices.
 
 #### 27. Create API key — `POST /api/v1/orgs/:orgId/api-keys`
 
@@ -1746,7 +1763,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `usage-rollup` | Every hour at :05 | Recompute today's and yesterday's `usage_daily_rollups` from `usage_events` (upsert) |
 | `roll-free-periods` | Daily 00:01 | Move Free subscriptions whose `currentPeriodEnd` has passed to the next calendar month |
 | `mrr-snapshot` | Daily 00:15 | Write today's `mrr_snapshots` row for every organization |
-| `reconcile-stripe` | Daily 01:00 | Compare subscriptions with Stripe and correct mismatches (FR-WH-09) |
+| `reconcile-stripe` | Daily 01:00 (03:15 with `cleanup` in production) | For every organization with a Stripe customer, re-sync its subscription from Stripe (also finding subscriptions whose webhooks never arrived) and audit each corrected field as `reconciliation.corrected` (FR-WH-09) |
 | `verify-usage-counters` | Daily 01:30 | Compare `usage_counters.units` with `SUM(usage_events.quantity)` for the current period; fix and log any drift |
 | `cleanup` | Daily 03:15 | Delete accounts unverified for 7 days (and organizations only they belong to), email tokens used or expired for more than a day, and ended `rate_limits` windows |
 
@@ -2451,7 +2468,8 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Checkout session, Customer Portal session (server); success-page polling comes with the billing page
 - [x] Webhook receiver (raw body, signature, inbox) and processor (claim, exactly once, backoff, re-fetch, transaction)
 - [x] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
-- [ ] Change-plan preview and apply (with Idempotency-Key); invoices list; billing page
+- [x] Change-plan preview and apply (with Idempotency-Key); invoices list
+- [ ] Billing page
 - [x] `retry-webhooks` job
 - [x] Payment emails
 - [ ] Past-due banner
@@ -2471,7 +2489,8 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ### Phase 4 — Hardening and launch (weeks 7–8)
 
-- [ ] `reconcile-stripe` job; failed-webhooks admin page
+- [x] `reconcile-stripe` job
+- [ ] Failed-webhooks admin page
 - [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
 - [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
 - [ ] Audit log page; empty/loading/error states everywhere

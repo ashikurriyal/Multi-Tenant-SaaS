@@ -1,4 +1,5 @@
 import { cleanup } from './cleanup';
+import { reconcileStripe } from './reconcileStripe';
 import { retryWebhooks } from './retryWebhooks';
 import { sendEmails } from './sendEmails';
 
@@ -17,6 +18,7 @@ export type Job = {
 export const jobs: Job[] = [
   { name: 'send-emails', schedule: '* * * * *', run: sendEmails },
   { name: 'retry-webhooks', schedule: '* * * * *', run: retryWebhooks },
+  { name: 'reconcile-stripe', schedule: '0 1 * * *', run: reconcileStripe }, // daily 01:00 UTC
   { name: 'cleanup', schedule: '15 3 * * *', run: cleanup }, // daily 03:15 UTC
 ];
 

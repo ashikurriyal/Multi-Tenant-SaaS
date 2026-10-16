@@ -20,4 +20,23 @@ router.post(
   BillingController.createPortalSession,
 );
 
+router.post(
+  '/change-plan/preview',
+  requirePermission('billing:manage'),
+  validateRequest(BillingValidation.changePlanPreview),
+  BillingController.previewPlanChange,
+);
+router.post(
+  '/change-plan',
+  requirePermission('billing:manage'),
+  validateRequest(BillingValidation.changePlan),
+  BillingController.changePlan,
+);
+router.get(
+  '/invoices',
+  requirePermission('billing:read'),
+  validateRequest(BillingValidation.listInvoices),
+  BillingController.listInvoices,
+);
+
 export const BillingRoutes = router;

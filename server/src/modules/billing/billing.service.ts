@@ -3,11 +3,16 @@ import { getPortalConfigurationId, getStripe } from '../../lib/stripe';
 import type { TenantPrisma } from '../../lib/tenantPrisma';
 import { recordAudit } from '../../shared/audit';
 import { accessLevel } from '../../shared/subscriptionState';
+import { countSeatsUsed } from '../../shared/entitlements';
+import { buildMeta, toSkipTake, type TPagination } from '../../utils/pagination';
 import {
   billingPageUrl,
   ensureStripeCustomer,
   getPurchasablePlan,
   PAID_HOLDING_STATUSES,
+  splitSubscriptionItems,
+  stripeNow,
+  withIdempotentRetry,
 } from './billing.utils';
 
 type TActor = { id: string; email: string };
@@ -135,4 +140,169 @@ const createPortalSession = async (db: TenantPrisma, organizationId: string) => 
   return { url: session.url };
 };
 
-export const BillingService = { getSubscription, createCheckoutSession, createPortalSession };
+// Plan changes need a paid subscription in good standing (FR-BILL-04…06)
+async function loadChangeablePlan(db: TenantPrisma, organizationId: string, planCode: string) {
+  const subscription = await db.subscription.findUniqueOrThrow({
+    where: { organizationId },
+    include: { plan: true },
+  });
+  if (!subscription.stripeSubscriptionId || !['ACTIVE', 'TRIALING'].includes(subscription.status)) {
+    throw new AppError(
+      409,
+      subscription.status === 'PAST_DUE' ? 'PAYMENT_FAILED' : 'NOT_SUBSCRIBED',
+      subscription.status === 'PAST_DUE'
+        ? 'Your last payment failed. Update the payment method before changing plans.'
+        : 'There is no active paid plan to change. Choose a plan to subscribe instead.',
+    );
+  }
+  if (subscription.plan.code === planCode) {
+    throw new AppError(409, 'CONFLICT', `You are already on the ${subscription.plan.name} plan.`);
+  }
+
+  const target = await getPurchasablePlan(planCode);
+
+  // FR-BILL-06: a smaller plan must fit everyone already in the organization
+  if (target.seatLimit < subscription.plan.seatLimit) {
+    const seatsUsed = await countSeatsUsed(organizationId);
+    if (seatsUsed > target.seatLimit) {
+      throw new AppError(
+        409,
+        'SEATS_EXCEED_TARGET_PLAN',
+        `${target.name} allows ${target.seatLimit} seats, but ${seatsUsed} are in use (members and pending invitations). Remove some first.`,
+      );
+    }
+  }
+
+  const stripeSub = await getStripe().subscriptions.retrieve(subscription.stripeSubscriptionId, {
+    expand: ['items.data.price'],
+  });
+  const { flat, metered } = splitSubscriptionItems(stripeSub.items.data);
+  // Swap both prices in place; a missing metered item (older subscriptions) is added
+  const items = [
+    { id: flat.id, price: target.stripePriceId },
+    metered
+      ? { id: metered.id, price: target.stripeMeteredPriceId }
+      : { price: target.stripeMeteredPriceId },
+  ];
+  return { subscription, target, stripeSub, items };
+}
+
+/**
+ * FR-BILL-04: what changing now would cost. `amountDueNowCents` is the prorated charge
+ * (negative = credit kept on the account for the next invoices). The returned
+ * `prorationDate` is sent back with the change so the charge matches this preview.
+ */
+const previewPlanChange = async (db: TenantPrisma, organizationId: string, planCode: string) => {
+  const { subscription, target, stripeSub, items } = await loadChangeablePlan(
+    db,
+    organizationId,
+    planCode,
+  );
+  const prorationDate = await stripeNow(stripeSub);
+  const preview = await getStripe().invoices.createPreview({
+    customer: typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer.id,
+    subscription: stripeSub.id,
+    subscription_details: {
+      items,
+      proration_behavior: 'always_invoice',
+      proration_date: prorationDate,
+    },
+  });
+
+  return {
+    currentPlan: { code: subscription.plan.code, name: subscription.plan.name },
+    targetPlan: {
+      code: target.code,
+      name: target.name,
+      monthlyPriceCents: target.monthlyPriceCents,
+    },
+    isUpgrade: target.monthlyPriceCents > subscription.plan.monthlyPriceCents,
+    amountDueNowCents: preview.total,
+    currency: preview.currency,
+    // From the next period on: the new plan's monthly price, plus any overage
+    nextMonthlyCents: target.monthlyPriceCents,
+    prorationDate,
+  };
+};
+
+/**
+ * FR-BILL-05. Changes the Stripe subscription with proration, charged right away. The
+ * Idempotency-Key makes a double-clicked "Confirm" a single change in Stripe. A declined
+ * card leaves everything unchanged (402). Our database changes only when the
+ * customer.subscription.updated webhook arrives.
+ */
+const changePlan = async (
+  db: TenantPrisma,
+  organizationId: string,
+  actor: TActor,
+  input: { planCode: string; prorationDate?: number; idempotencyKey: string },
+) => {
+  const { subscription, target, stripeSub, items } = await loadChangeablePlan(
+    db,
+    organizationId,
+    input.planCode,
+  );
+  // A preview older than an hour (or from the future) is stale: charge from now instead
+  const now = await stripeNow(stripeSub);
+  const age = input.prorationDate ? now - input.prorationDate : Infinity;
+  const fresh = age >= 0 && age < 3600 ? input.prorationDate : undefined;
+
+  await withIdempotentRetry(() =>
+    getStripe().subscriptions.update(
+      stripeSub.id,
+      {
+        items,
+        proration_behavior: 'always_invoice',
+        ...(fresh && { proration_date: fresh }),
+        payment_behavior: 'error_if_incomplete',
+        metadata: { organizationId, planCode: target.code },
+      },
+      { idempotencyKey: `ledgerflow-change-plan-${organizationId}-${input.idempotencyKey}` },
+    ),
+  );
+
+  await recordAudit(db, {
+    organizationId,
+    actorId: actor.id,
+    action: 'plan.change_requested',
+    entityType: 'Subscription',
+    entityId: subscription.id,
+    before: { planCode: subscription.plan.code },
+    after: { planCode: target.code },
+  });
+
+  return { planCode: target.code, status: 'pending' as const };
+};
+
+// FR-BILL-08: newest first, from our copy (kept current by invoice webhooks)
+const listInvoices = async (db: TenantPrisma, pagination: TPagination) => {
+  const [invoices, total] = await Promise.all([
+    db.invoice.findMany({
+      ...toSkipTake(pagination),
+      orderBy: [{ periodStart: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        status: true,
+        amountDueCents: true,
+        amountPaidCents: true,
+        currency: true,
+        periodStart: true,
+        periodEnd: true,
+        paidAt: true,
+        hostedInvoiceUrl: true,
+        createdAt: true,
+      },
+    }),
+    db.invoice.count(),
+  ]);
+  return { data: invoices, meta: buildMeta(pagination, total) };
+};
+
+export const BillingService = {
+  getSubscription,
+  createCheckoutSession,
+  createPortalSession,
+  previewPlanChange,
+  changePlan,
+  listInvoices,
+};
