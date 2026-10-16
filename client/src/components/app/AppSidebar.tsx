@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Settings, Users } from "lucide-react";
+import { CreditCard, LayoutDashboard, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -23,9 +23,10 @@ import UserMenu from "./UserMenu";
 
 type NavItem = { title: string; path: string; icon: typeof Users; permission: Permission };
 
-// Billing, usage, API keys and audit log are added with their phases
+// Usage, API keys and audit log are added with their phases
 const MAIN: NavItem[] = [
   { title: "Dashboard", path: "dashboard", icon: LayoutDashboard, permission: "usage:read" },
+  { title: "Billing", path: "billing", icon: CreditCard, permission: "billing:read" },
 ];
 const SETTINGS: NavItem[] = [
   { title: "Members", path: "settings/members", icon: Users, permission: "members:read" },

@@ -2406,7 +2406,7 @@ useEffect(() => {
 | Route | Who | Content | Key behaviour |
 | --- | --- | --- | --- |
 | `/` | Everyone | Landing page (Magic UI accents) | Static, fast |
-| `/pricing` | Everyone | Plan cards from `GET /plans` | Server-rendered |
+| `/pricing` | Everyone | Plan cards from `GET /plans` | Static shell; plans rendered on the server per request inside `<Suspense>` (the build never calls the API) |
 | `/login`, `/register` | Visitors | Forms (React Hook Form + Zod) | Register ends on a "Check your inbox" screen with resend; login shows a resend action for `EMAIL_NOT_VERIFIED`; "Forgot password?" link; demo-account buttons on login |
 | `/verify-email` | Visitors | Verifies the token from the link | Logs in and continues to `?next=` or the first organization; expired link → resend |
 | `/forgot-password`, `/reset-password` | Visitors | Request a reset link; set a new password from the link | Same confirmation for every email; after reset → login |
@@ -2414,7 +2414,7 @@ useEffect(() => {
 | `/invite/[token]` | Everyone | Org name, role, accept button | Prompts login/register if needed |
 | `/[orgSlug]/dashboard` | Members | Usage vs quota, 30-day chart, plan badge | Banner at 80% and 100% usage; past-due banner |
 | `/[orgSlug]/usage` | Members | Daily usage table and chart with date range | Range stored in URL search params |
-| `/[orgSlug]/billing` | Billing, Admin, Owner | Plan cards, change plan, invoices, portal button | Checkout polling; proration preview dialog |
+| `/[orgSlug]/billing` | Billing, Admin, Owner (actions: Billing, Owner) | Current plan, plan cards (Upgrade → Checkout; Switch → preview dialog), Manage billing (portal), invoices | After Checkout (`?checkout=success`) or a plan switch: polls the subscription every 2 s until the webhook has applied it (gives up after 30 s); a past-due/unpaid/incomplete banner shows on every org page |
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
 | `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke | Show-once dialog with copy button |
 | `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes | Paginated |
@@ -2469,10 +2469,10 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Webhook receiver (raw body, signature, inbox) and processor (claim, exactly once, backoff, re-fetch, transaction)
 - [x] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
 - [x] Change-plan preview and apply (with Idempotency-Key); invoices list
-- [ ] Billing page
+- [x] Billing page, pricing page
 - [x] `retry-webhooks` job
 - [x] Payment emails
-- [ ] Past-due banner
+- [x] Past-due banner
 
 **Done when:** upgrade, plan change, cancel and a failed payment each show the correct state in the UI without a manual refresh (checklist 19.3).
 
