@@ -19,5 +19,19 @@ export const registerSchema = z.object({
     .max(80, "At most 80 characters"),
 });
 
+export const forgotPasswordSchema = z.object({ email });
+
+export const resetPasswordSchema = z
+  .object({
+    password: z.string().min(8, "At least 8 characters").max(72, "At most 72 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
 export type LoginValues = z.infer<typeof loginSchema>;
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
 export type RegisterValues = z.infer<typeof registerSchema>;
