@@ -12,6 +12,9 @@ declare global {
     }
 
     interface Request {
+      // Set by apiKeyAuth on machine routes (x-api-key)
+      apiKey?: { id: string; organizationId: string; prefix: string };
+
       // Set by requireOrgMember on every /orgs/:orgId route
       org?: {
         id: string;

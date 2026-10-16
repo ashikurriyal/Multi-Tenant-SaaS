@@ -541,11 +541,11 @@ Only an Owner may grant or remove the Owner role.
 
 | ID | Requirement |
 | --- | --- |
-| FR-KEY-01 | Users with `apikeys:manage` may create a named API key. The full key (`lf_live_` + 32 random bytes in base64url) is returned **once** and never again. |
+| FR-KEY-01 | Users with `apikeys:manage` may create a named API key (name 2–60 characters). The full key (`lf_live_` + 32 random bytes in base64url; `lf_test_` outside production, so keys from the wrong environment are recognizable) is returned **once**, with `Cache-Control: no-store`, and never again. |
 | FR-KEY-02 | Only the SHA-256 hash and the first 12 characters (`prefix`) are stored. |
-| FR-KEY-03 | An organization may have at most 10 active (non-revoked) keys. |
-| FR-KEY-04 | Revoking sets `revokedAt`; revoked keys are rejected immediately with `401 INVALID_API_KEY`. |
-| FR-KEY-05 | The list endpoint shows name, prefix, creator, `lastUsedAt`, `createdAt` and `revokedAt`. |
+| FR-KEY-03 | An organization may have at most 10 active (non-revoked) keys; the 11th → `409 CONFLICT`. The organization row is locked while counting, so simultaneous requests can't exceed the limit. |
+| FR-KEY-04 | Revoking sets `revokedAt` (the row is kept for usage history); revoked keys are rejected on the very next request with `401 INVALID_API_KEY` — keys are checked against the database on every request. Missing, malformed, unknown and revoked keys all get the same `401`. Revoking twice → `409`. |
+| FR-KEY-05 | The list endpoint shows name, prefix, creator, `lastUsedAt`, `createdAt` and `revokedAt` (active keys first); never the key or its hash. `lastUsedAt` is updated at most once a minute per key, after the response, so high-volume ingestion doesn't write on every request. Creating and revoking are audited (`apikey.created`, `apikey.revoked`). |
 
 ### 9.9 Usage metering (FR-USE)
 
@@ -2478,7 +2478,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ### Phase 3 — Usage metering and analytics (weeks 5–6)
 
-- [ ] API keys (create once-shown, list, revoke) and `apiKeyAuth` middleware
+- [x] API keys (create once-shown, list, revoke) and `apiKeyAuth` middleware
 - [ ] `POST /usage` with idempotency and atomic limits (section 16.4)
 - [ ] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
 - [ ] Usage summary and daily endpoints; dashboard and usage pages with charts
