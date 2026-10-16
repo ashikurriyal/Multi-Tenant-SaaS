@@ -531,7 +531,7 @@ Only an Owner may grant or remove the Owner role.
 | FR-WH-02 | It must verify the `Stripe-Signature` header with `STRIPE_WEBHOOK_SECRET`. Invalid → `400`, nothing stored. |
 | FR-WH-03 | It must insert the event into `stripe_events` using Stripe's event id as primary key. If the id already exists, it must return `200` without processing again (deduplication). |
 | FR-WH-04 | Once the event is stored, the receiver must **answer `200` immediately** (`{ received: true, duplicate }`) and process the event **after** the response (Vercel `waitUntil`), so Stripe never waits on our database work. Processing claims the event atomically (`RECEIVED`/`FAILED` → `PROCESSING`), so the request, the retry job and other instances can never process one event twice. Failures are recorded on the row and retried by the `retry-webhooks` job. Without a configured `STRIPE_WEBHOOK_SECRET` the receiver answers `503` so Stripe retries later. |
-| FR-WH-05 | For subscription and invoice events the processor must **re-fetch the current object from the Stripe API** rather than trusting the event payload, so events arriving out of order still produce the correct final state. |
+| FR-WH-05 | For subscription and invoice events the processor must **re-fetch the current object from the Stripe API** rather than trusting the event payload, so events arriving out of order still produce the correct final state (observed in testing: `invoice.paid` regularly arrives before `customer.subscription.created`). |
 | FR-WH-06 | All database changes for one event must happen in one Prisma transaction. |
 | FR-WH-07 | A failed event must be retried with exponential backoff (`nextAttemptAt = now + 2^attempts minutes`: 2, 4, 8, 16) up to 5 attempts, then stay `FAILED` with no next attempt and appear in the super-admin dashboard. A `PROCESSING` row untouched for 10 minutes (crashed or timed-out worker) is reset to `FAILED` and retried. |
 | FR-WH-08 | Events to handle in the MVP: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.trial_will_end`. Other events are stored and marked `PROCESSED` with no action. |
@@ -1677,6 +1677,16 @@ Whether repeated payment failure ends in `UNPAID` or `CANCELED` is a setting in 
 | `invoice.payment_failed` | Upsert invoice; set `PAST_DUE`; set `graceEndsAt = now + 7 days` only if it is not already set; email `payment_failed` |
 | `customer.subscription.trial_will_end` | Email `trial_will_end` to Owners and Billing members |
 
+How the handlers apply these rules (`server/src/modules/billing/billing.sync.ts`):
+
+- **Which organization:** `metadata.organizationId` (set by our checkout), otherwise the organization whose `stripeCustomerId` matches. Objects matching neither are ignored, so a shared Stripe account can't write into LedgerFlow.
+- **Plan:** the subscription's licensed (non-metered) item; its price must match a plan's `stripePriceId`, otherwise the event fails and is retried (and shows up as `FAILED`).
+- **Period dates** come from the subscription **item** (Stripe API 2025+); `cancelAtPeriodEnd` is true when `cancel_at_period_end` or `cancel_at` is set and the subscription hasn't ended.
+- **One writer at a time:** each sync locks the organization's `subscriptions` row (`SELECT … FOR UPDATE`) inside its transaction.
+- **Stale events:** an event about an *older* subscription that has ended is ignored when the organization already points at another subscription.
+- **Emails follow status changes**, not events: `→ PAST_DUE` sends `payment_failed` (with the grace end date), `PAST_DUE → ACTIVE/TRIALING` sends `payment_recovered`, `→ CANCELED` sends `subscription_canceled`. A repeated event never sends a second email. Recipients: Owners and Billing members with a verified email. They are sent right after the event is processed.
+- **Audit (FR-BILL-09):** `plan.changed` and `subscription.status_changed` with `actorId = null`.
+
 ### 12.3 Entitlements
 
 One function, `getEntitlements(organizationId)`, decides what an organization may do. Every limit check uses it.
@@ -1816,7 +1826,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `CRON_SECRET` | 64 random chars | Bearer secret for `/internal/jobs/*`; required in production |
 | `TRUST_PROXY` | `1` | Proxies in front of the API whose `X-Forwarded-For` is trusted (client IP for rate limits and logs) |
 | `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD` | — | Used by the seed only |
-| `GRACE_PERIOD_DAYS` | `7` | Past-due grace period |
+| `GRACE_PERIOD_DAYS` | `7` | Past-due grace period: full access for this many days after the first failed payment of a past-due episode |
 
 ### 15.2 Client (`client/.env.local`)
 
@@ -2439,11 +2449,12 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 - [x] Script to create Stripe Products/Prices and a Billing Meter; plans linked to their ids (`npm run stripe:setup`)
 - [x] Checkout session, Customer Portal session (server); success-page polling comes with the billing page
-- [x] Webhook receiver (raw body, signature, inbox) and processor (claim, exactly once, backoff); re-fetch + transaction come with subscription sync
-- [ ] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
+- [x] Webhook receiver (raw body, signature, inbox) and processor (claim, exactly once, backoff, re-fetch, transaction)
+- [x] `syncSubscription`, `syncInvoice`, state helpers, entitlements, grace period
 - [ ] Change-plan preview and apply (with Idempotency-Key); invoices list; billing page
 - [x] `retry-webhooks` job
-- [ ] Past-due banner; payment emails
+- [x] Payment emails
+- [ ] Past-due banner
 
 **Done when:** upgrade, plan change, cancel and a failed payment each show the correct state in the UI without a manual refresh (checklist 19.3).
 
