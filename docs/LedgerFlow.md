@@ -556,10 +556,10 @@ Only an Owner may grant or remove the Owner role.
 | FR-USE-03 | A repeated `idempotencyKey` for the same organization must return `202` with the **original** event id and `duplicate: true`, and must not count usage again. |
 | FR-USE-04 | For plans without overage (Free, or any organization whose access level is `FREE`), the system must reject usage that would exceed `includedUnits` for the current period with `429 PLAN_LIMIT_USAGE`. This check must be **atomic**: concurrent requests can never push usage over the limit (section 16.4). |
 | FR-USE-05 | For paid plans, usage beyond `includedUnits` is accepted and billed as overage. |
-| FR-USE-06 | The usage period is the subscription's `currentPeriodStart` → `currentPeriodEnd`. |
+| FR-USE-06 | For a paid plan with full access, the usage period is the subscription's `currentPeriodStart` → `currentPeriodEnd`. For Free (and any organization whose access level is `FREE`), it is the current calendar month in UTC, computed at request time so the limit resets on the 1st even before `roll-free-periods` runs. |
 | FR-USE-07 | `GET /orgs/:orgId/usage/summary` must return units used this period, included units, percentage used, projected end-of-period units (current daily average × days in period), and projected overage cost. |
 | FR-USE-08 | `GET /orgs/:orgId/usage/daily?from&to` must return a daily series from `usage_daily_rollups` (maximum 90 days per request). |
-| FR-USE-09 | The usage endpoint must be rate-limited to 100 requests per second per API key. |
+| FR-USE-09 | The usage endpoint must be rate-limited to 100 requests per second per API key (`429 RATE_LIMITED`). The count is kept in memory per server instance, not in PostgreSQL, so the busiest endpoint doesn't pay an extra database write per request; with several instances the ceiling is a multiple of 100/s. The plan limit itself is enforced exactly by the atomic counter. |
 | FR-USE-10 | `lastUsedAt` on the API key should be updated at most once per minute per key. |
 
 ### 9.10 Analytics (FR-AN)
@@ -921,6 +921,15 @@ Content-Type: application/json
 { "success": false, "statusCode": 429, "message": "Monthly usage limit of 1,000 units reached. Upgrade to continue.",
   "errorCode": "PLAN_LIMIT_USAGE", "errorDetails": [] }
 ```
+
+| Case | Response |
+| --- | --- |
+| Same `idempotencyKey` again (from any of the organization's keys, even at the limit) | `202`, message `Already recorded`, the original `eventId`, `duplicate: true`; nothing counted |
+| Missing, malformed, unknown or revoked key | `401 INVALID_API_KEY` |
+| Invalid body (metric format, quantity outside 1–10,000, `occurredAt` older than 24 h or more than 5 min ahead) | `400 VALIDATION_ERROR` |
+| More than 100 requests in one second with the same key | `429 RATE_LIMITED` (`RateLimit` headers show what is left) |
+
+`202` means "accepted for billing": overage is reported to Stripe's meter later by the `report-usage` job.
 
 #### 30. Usage summary — `GET /api/v1/orgs/:orgId/usage/summary`
 
@@ -2136,54 +2145,41 @@ router.post('/:orgId/invitations', auth, requireOrgMember, requirePermission('me
 The limit check and the increment happen in **one SQL statement**. PostgreSQL locks the row while it updates it, so concurrent requests queue up, and each one sees the previous one's result. The limit can never be overrun.
 
 ```ts
-// server/src/modules/usage/usage.service.ts
-async function recordUsage(org: { id: string }, apiKeyId: string, input: UsageInput) {
-  const ent = await getEntitlements(org.id);
-  const periodStart = ent.periodStart;
-  const limit = ent.overageAllowed ? null : ent.includedUnits;
+// server/src/modules/usage/usage.service.ts (simplified)
+const ctx = await getUsageContext(organizationId); // periodStart, includedUnits, limit (null = overage allowed)
 
-  try {
-    return await prisma.$transaction(async (tx) => {
-      const event = await tx.usageEvent.create({
-        data: {
-          organizationId: org.id, apiKeyId, metric: input.metric, quantity: input.quantity,
-          idempotencyKey: input.idempotencyKey, occurredAt: input.occurredAt ?? new Date(),
-        },
-      });
+// A retry of something already recorded is a duplicate, even when the limit is reached
+const existing = await findOriginal(organizationId, input.idempotencyKey);
+if (existing) return { eventId: existing.id.toString(), duplicate: true, ... };
 
-      await tx.$executeRaw`
-        INSERT INTO usage_counters ("organizationId", "periodStart", "units", "updatedAt")
-        VALUES (${org.id}, ${periodStart}, 0, now())
-        ON CONFLICT DO NOTHING`;
+try {
+  return await prisma.$transaction(async (tx) => {
+    // Create the period's counter or add to it, only while it stays within the limit.
+    // No row back = the limit would be exceeded.
+    const rows = await tx.$queryRaw<{ units: number }[]>`
+      INSERT INTO usage_counters ("organizationId", "periodStart", units, "updatedAt")
+      SELECT ${organizationId}, ${ctx.periodStart}, ${input.quantity}, now()
+      WHERE ${ctx.limit}::int IS NULL OR ${input.quantity} <= ${ctx.limit}::int
+      ON CONFLICT ("organizationId", "periodStart") DO UPDATE
+        SET units = usage_counters.units + EXCLUDED.units, "updatedAt" = now()
+        WHERE ${ctx.limit}::int IS NULL OR usage_counters.units + EXCLUDED.units <= ${ctx.limit}::int
+      RETURNING units`;
+    if (rows.length === 0) throw limitReached(ctx.limit!); // 429 PLAN_LIMIT_USAGE
 
-      const updated = limit === null
-        ? await tx.$executeRaw`
-            UPDATE usage_counters SET units = units + ${input.quantity}, "updatedAt" = now()
-            WHERE "organizationId" = ${org.id} AND "periodStart" = ${periodStart}`
-        : await tx.$executeRaw`
-            UPDATE usage_counters SET units = units + ${input.quantity}, "updatedAt" = now()
-            WHERE "organizationId" = ${org.id} AND "periodStart" = ${periodStart}
-              AND units + ${input.quantity} <= ${limit}`;
-
-      // 0 rows updated = limit reached. Throwing rolls back the event insert too.
-      if (updated === 0) throw new AppError(429, 'PLAN_LIMIT_USAGE', `Monthly usage limit of ${limit} units reached. Upgrade to continue.`);
-
-      return { eventId: event.id.toString(), duplicate: false };
-    });
-  } catch (err) {
-    if (isPrismaUniqueError(err)) {
-      // Same idempotencyKey already recorded: return the original, count nothing.
-      const original = await prisma.usageEvent.findUniqueOrThrow({
-        where: { organizationId_idempotencyKey: { organizationId: org.id, idempotencyKey: input.idempotencyKey } },
-      });
-      return { eventId: original.id.toString(), duplicate: true };
-    }
-    throw err;
-  }
+    const event = await tx.usageEvent.create({ data: { ... } });
+    return { eventId: event.id.toString(), duplicate: false, periodUnits: rows[0].units, ... };
+  });
+} catch (err) {
+  // Two identical requests at the same moment: the unique index (organizationId, idempotencyKey)
+  // lets one win; the other's whole transaction, counter included, rolls back
+  if (isP2002(err)) return { eventId: (await findOriginal(...)).id.toString(), duplicate: true, ... };
+  throw err;
 }
 ```
 
-**Verified while preparing this document:** on PostgreSQL 16, 50 concurrent requests of 30 units each against a 1,000-unit limit → **exactly 33 accepted, final counter 990**, never above the limit. Reproduce it with the script in section 19.4 and put your own numbers in the README.
+One `INSERT … ON CONFLICT DO UPDATE … WHERE` statement both creates a new period's counter and does the conditional increment, so there is no separate "create the row first" step. A request that is rejected or turns out to be a duplicate leaves no event and no units behind.
+
+**Verified on the implementation** (PostgreSQL 16, branch `feat/server-usage-ingest`): 50 concurrent requests of 30 units each against the 1,000-unit Free limit → **exactly 33 accepted, 17 rejected with `PLAN_LIMIT_USAGE`, final counter 990** = the sum of the stored events; 10 more units fit exactly and 1 more is rejected. 20 concurrent requests with the same `idempotencyKey` → all `202`, one event, counted once. Reproduce it with the script in section 19.4 and put your own numbers in the README.
 
 `BigInt` ids must be converted to strings before sending JSON (`event.id.toString()`), because `JSON.stringify` cannot serialise `BigInt`.
 
@@ -2479,7 +2475,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 ### Phase 3 — Usage metering and analytics (weeks 5–6)
 
 - [x] API keys (create once-shown, list, revoke) and `apiKeyAuth` middleware
-- [ ] `POST /usage` with idempotency and atomic limits (section 16.4)
+- [x] `POST /usage` with idempotency and atomic limits (section 16.4)
 - [ ] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
 - [ ] Usage summary and daily endpoints; dashboard and usage pages with charts
 - [ ] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn endpoints and admin pages
