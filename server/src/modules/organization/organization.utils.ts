@@ -46,7 +46,9 @@ export const generateUniqueSlug = async (
   isTaken: (slug: string) => Promise<boolean>,
 ) => {
   const base = toSlug(name);
-  if (!RESERVED_SLUGS.has(base) && !(await isTaken(base))) return base;
+  // `demo-…` belongs to the demo organizations (SRS 21.2)
+  const reserved = RESERVED_SLUGS.has(base) || base.startsWith('demo-');
+  if (!reserved && !(await isTaken(base))) return base;
 
   for (let i = 0; i < 5; i++) {
     const candidate = `${base}-${randomSuffix()}`;

@@ -578,7 +578,7 @@ Only an Owner may grant or remove the Owner role.
 | --- | --- |
 | FR-AUD-01 | The system must write an `audit_logs` row for: member invited/joined/removed/role changed, API key created/revoked, checkout started, plan changed, subscription status changed, reconciliation corrections. |
 | FR-AUD-02 | Rows store `before` and `after` JSON for changes. Audit rows are never updated or deleted by the application. |
-| FR-AUD-03 | Users with `audit:read` may list their organization's audit log, newest first, with pagination. |
+| FR-AUD-03 | Users with `audit:read` may list their organization's audit log, newest first, with pagination and an optional `category` filter (`members`, `api_keys`, `billing`, `usage`, `organization`). |
 
 ### 9.12 Email (FR-MAIL)
 
@@ -586,7 +586,7 @@ Only an Owner may grant or remove the Owner role.
 | --- | --- |
 | FR-MAIL-01 | Emails are written to `email_outbox` **inside the same transaction** as the change that causes them, then sent by a job. A crash can therefore never lose an email. |
 | FR-MAIL-02 | Templates: `invitation`, `verify_email`, `reset_password`, `payment_failed`, `payment_recovered`, `trial_will_end`, `subscription_canceled`. Links inside a payload are replaced by `[redacted after send]` once delivered. |
-| FR-MAIL-03 | Sending failures are retried up to 5 times, then marked `FAILED`. Each row is claimed atomically before sending, so concurrent senders (scheduled job, after-request send, several instances) deliver it exactly once. Emails caused by a request are also sent right after the response. |
+| FR-MAIL-03 | Sending failures are retried up to 5 times, then marked `FAILED`. Each row is claimed atomically before sending, so concurrent senders (scheduled job, after-request send, several instances) deliver it exactly once. Emails caused by a request are also sent right after the response. Addresses on the reserved test domains `.example` and `.invalid` (and `example.com/net/org`), used by the demo and sample accounts, are marked sent without sending (`lastError: Not sent: reserved test domain`). |
 
 ---
 
@@ -639,6 +639,7 @@ Only an Owner may grant or remove the Owner role.
 | 402 | `PLAN_LIMIT_SEATS` | Seat limit reached |
 | 402 | `PAYMENT_FAILED` | Card declined during a plan change (nothing changed), or plan change attempted while past due (409) |
 | 403 | `FORBIDDEN` | Member lacks the permission |
+| 403 | `DEMO_RESTRICTED` | Turned off in the shared demo organizations (section 21.2) |
 | 403 | `USER_BLOCKED` | Account blocked |
 | 403 | `EMAIL_NOT_VERIFIED` | Correct password, but the email address is not verified yet |
 | 403 | `INVITE_EMAIL_MISMATCH` | Logged-in email differs from the invited email |
@@ -707,6 +708,8 @@ Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 
 | 41 | POST | `/auth/forgot-password` | Public | Send a password-reset link (same answer for every email) |
 | 42 | POST | `/auth/reset-password` | Public (token) | Set a new password; revoke all sessions |
 | 43 | GET, POST | `/internal/jobs/:name` | `Bearer CRON_SECRET` | Run a scheduled job (any name in section 13); 404 when no secret is configured |
+| 44 | GET | `/demo/accounts` | Public | Demo accounts available for one-click login (`[]` unless `DEMO_ENABLED`) |
+| 45 | POST | `/demo/login` | Public (rate-limited like login) | `{ account }` → same response and cookie as login; 404 unless `DEMO_ENABLED`, 503 while the demo is being reset |
 
 ### 10.4 Endpoint details (main flows)
 
@@ -973,6 +976,25 @@ The period and limits come from the same rules as ingestion (FR-USE-06): the Str
 ```
 
 Days are UTC; both ends are included. All parameters are optional: `to` defaults to today, `from` to 29 days before `to`, and without `metric` every metric is summed. `metrics` lists every metric seen in the range, for a filter. More than 90 days, or `from` after `to` → `400 VALIDATION_ERROR`.
+
+#### 32. Audit log — `GET /api/v1/orgs/:orgId/audit-logs?category=members&page=1&limit=10`
+
+```json
+{
+  "success": true, "statusCode": 200, "message": "Audit log retrieved",
+  "meta": { "page": 1, "limit": 10, "total": 37, "totalPages": 4 },
+  "data": [
+    { "id": "912", "action": "member.role_changed", "entityType": "Membership", "entityId": "6f1c…",
+      "before": { "role": "MEMBER" }, "after": { "role": "ADMIN" }, "createdAt": "2026-10-18T09:12:44.000Z",
+      "actor": { "id": "a41b…", "name": "Sarah Khan", "email": "sarah@acme.com" },
+      "subject": { "id": "7c2d…", "name": "Mia Lopez", "email": "mia@acme.com" } },
+    { "id": "905", "action": "subscription.status_changed", "entityType": "Subscription", "entityId": "…",
+      "before": { "status": "ACTIVE" }, "after": { "status": "PAST_DUE" }, "createdAt": "…", "actor": null, "subject": null }
+  ]
+}
+```
+
+Owners and admins (`audit:read`). Newest first; `actor` is `null` when Stripe or a scheduled job made the change. `subject` is the member a membership entry is about (resolved from `userId` in `before`/`after`, one query per page), otherwise `null`. Both keep the names of people who have since left. `category` groups actions by prefix: `members` (`member.*`, `invitation.*`), `api_keys` (`apikey.*`), `billing` (`checkout.*`, `plan.*`, `subscription.*`, `reconciliation.*`), `usage` (`usage.*`), `organization` (`organization.*`). Ids are strings (BigInt).
 
 #### 34. Admin MRR — `GET /api/v1/admin/metrics/mrr?months=12`
 
@@ -1715,7 +1737,7 @@ export default defineConfig({
 
 1. The three plans (Free, Pro, Business) with their limits and prices. The seed never touches the Stripe price ids; run `npm run stripe:setup` afterwards to create the Stripe Products, Prices and Meter and link them.
 2. A super admin user (from `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`), already verified. Seeded demo users are verified too, so they can log in without an email.
-3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit. *Planned with the Phase 4 demo accounts: they need real Stripe test subscriptions for the billing demos.*
+3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit. **Implemented as `npm run demo:reset`** and the nightly `reset-demo` job (section 21.2), not in `prisma/seed.ts`, because the paid ones are real Stripe test subscriptions.
 4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load. **Implemented as a separate script, `npm run seed:demo`** (`server/scripts/seed-demo.ts`), so the production seed never adds sample data by accident:
    - 40 organizations marked `organizations.isDemo = true`, each with an owner and members (within seat limits) at `@demo.ledgerflow.invalid` addresses: verified (so `cleanup` keeps them), random password (nobody can log in), and undeliverable. Nothing is created in Stripe and no usage events or counters are written, so `report-usage`, `reconcile-stripe` and `verify-usage-counters` have nothing to act on.
    - A deterministic day-by-day simulation over 13 months: signups (more recently), conversions after 1–8 weeks, upgrades/downgrades on renewal days, ~5% churn per renewal, some reactivations, 2 past due (inside grace) and 2 cancelling at period end today.
@@ -1837,6 +1859,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `mrr-snapshot` | Daily 00:15 (03:15 in production) | Write today's (UTC) `mrr_snapshots` row for every organization, zero included, in one `INSERT … SELECT FROM unnest(…) ON CONFLICT DO UPDATE`; a second run the same day overwrites with current values |
 | `reconcile-stripe` | Daily 01:00 (03:15 with `cleanup` in production) | For every organization with a Stripe customer, re-sync its subscription from Stripe (also finding subscriptions whose webhooks never arrived) and audit each corrected field as `reconciliation.corrected` (FR-WH-09) |
 | `verify-usage-counters` | Daily 01:30 (03:15 in production) | For counters of periods that started in the last 40 days, compare `units` with `SUM(quantity)` of the events with the same `periodStart`. A drift is repaired after locking the counter row (`FOR UPDATE`, so every ingest that touched it has committed and the sum is exact), audited as `usage.counter_corrected` and logged |
+| `reset-demo` | Daily 03:30 (03:15 group in production) | Recreate the demo organizations of section 21.2 from scratch, including their Stripe test subscriptions; does nothing unless `DEMO_ENABLED=true` |
 | `cleanup` | Daily 03:15 | Delete accounts unverified for 7 days (and organizations only they belong to), email tokens used or expired for more than a day, and ended `rate_limits` windows |
 
 ---
@@ -2476,7 +2499,7 @@ useEffect(() => {
 | `/[orgSlug]/billing` | Billing, Admin, Owner (actions: Billing, Owner) | Current plan, plan cards (Upgrade → Checkout; Switch → preview dialog), Manage billing (portal), invoices | After Checkout (`?checkout=success`) or a plan switch: polls the subscription every 2 s until the webhook has applied it (gives up after 30 s); a past-due/unpaid/incomplete banner shows on every org page |
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
 | `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke, a copyable `curl` example | Show-once dialog with copy button (can't be closed by a stray click; the key is dropped from memory when it closes); create disabled at 10 active keys |
-| `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes | Paginated |
+| `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes, one sentence per entry ("You changed Mia Lopez's role from Member to Admin"), grouped by day | Category filter and page in the URL; Stripe and scheduled jobs shown as the actor where they made the change |
 | `/[orgSlug]/settings/profile` | Everyone | Name, password | — |
 | `/admin` | Super admin | MRR chart, movements chart and table, MRR / paying customers + ARPA / churn / NRR cards | 6, 12 or 24 months in `?months`; churn and NRR cards use the last complete month (a partial month understates them). Others get 404; a super admin without an organization lands here after login; "Platform admin" in the user menu |
 | `/admin/tenants` | Super admin | Organizations table: plan, status, members, MRR, created | Search (debounced), plan and status filters and page in the URL |
@@ -2554,8 +2577,10 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Failed-webhooks admin page
 - [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
 - [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
-- [ ] Audit log page; empty/loading/error states everywhere
-- [ ] README, ERD in `docs/`, ADRs, demo accounts, 2-minute Loom walkthrough
+- [x] Audit log page
+- [ ] Empty/loading/error states everywhere (review)
+- [x] Demo accounts: one-click buttons on the login page, demo banner, restricted actions turned off in the UI
+- [ ] README, ERD in `docs/`, ADRs, 2-minute Loom walkthrough
 - [ ] Full run of the manual verification checklist on production
 
 **Done when:** every item in section 19 passes on the live site, and a recruiter can try the demo in under 60 seconds.
@@ -2724,9 +2749,16 @@ A reviewer spends about 90 seconds on your repository. Show the product, the arc
 | Billing user, Acme | Can manage billing; cannot manage members or API keys |
 | Owner, Globex (past due) | Dunning banner with grace countdown |
 | Owner, Initech (Free) | Usage at 95% of the Free limit; upgrade prompts |
-| Super admin | MRR, movements, churn, tenants, failed webhooks |
 
-Reset demo data nightly by re-running the seed for demo organizations only.
+**As built** (`server/src/modules/demo/`):
+
+- **Accounts:** the four above. There is deliberately no public super-admin demo: it would show every real organization's name; the admin pages are shown in the README with screenshots instead. Each button calls `POST /api/v1/demo/login` with an account key; there are no passwords in the client, and the demo users' own passwords are random. Enabled only where `DEMO_ENABLED=true`.
+- **Organizations:** `demo-acme`, `demo-globex`, `demo-initech` (`isDemo`, and the `demo-` slug prefix is reserved for them). Users have `.example` addresses (RFC 2606), which never receive email. Extra members, an API key and a short audit history make the pages look lived-in.
+- **Stripe:** Acme and Globex are real test-mode subscriptions on **test clocks**. Acme subscribed 12 days ago with `4242` (active, 12 days into its period, so plan-change prorations and the portal work). Globex's trial ended 2 days ago and the renewal charge failed on a declining card, so it is genuinely `past_due` with a 7-day grace period. The clocks stay frozen, so nothing renews or retries until the next reset. Without a Stripe key the same states are written to the database directly.
+- **Usage:** recorded like the usage API records it (events, counter, rollups) for the current period: Acme 81% of 50,000, Globex 34%, Initech 95% of 1,000, plus 90 days of chart history. Demo usage is never sent to Stripe.
+- **Guards:** in demo organizations, invitations, member and role changes (including leaving) and renaming answer `403 DEMO_RESTRICTED`; demo users can't create organizations, accept invitations or rename themselves. Everything else works (plan changes, portal, checkout, API keys, usage) and is undone by the reset.
+- **Client:** the login page lists the accounts from `GET /demo/accounts` (nothing shows when the list is empty). Inside a demo organization a banner names the demo user and offers "Create your own account" (signs out, then opens `/register`); the invite button, role menus, remove/leave and the rename form are shown as turned off instead of failing after a click.
+- **Reset:** the `reset-demo` job (nightly) and `npm run demo:reset -- --yes` delete the previous demo's Stripe objects (the test clock with its customer, or a customer a visitor created through Checkout) and the demo organizations and users of **this** database only, then rebuild everything (about 25 seconds). Visitors signed in at that moment are signed out.
 
 ### 21.3 Architecture decision records (one page each)
 

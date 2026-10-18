@@ -16,6 +16,7 @@ import { setCredentials } from "@/redux/features/authSlice";
 import { useAppDispatch } from "@/redux/hooks";
 import { loginSchema, type LoginValues } from "@/schemas/auth";
 import AuthChecking from "./AuthChecking";
+import DemoAccounts from "./DemoAccounts";
 import ResendVerificationButton from "./ResendVerificationButton";
 import FormField from "@/components/forms/FormField";
 
@@ -50,50 +51,53 @@ export default function LoginForm() {
   if (checking && !isLoading) return <AuthChecking />;
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4">
-      {errors.root?.type === "EMAIL_NOT_VERIFIED" ? (
-        <div className="space-y-3">
-          <Alert>
-            <AlertCircle />
-            <AlertDescription>{errors.root.message}</AlertDescription>
-          </Alert>
-          <ResendVerificationButton email={getValues("email")} next={next} />
+    <div className="space-y-6">
+      <form onSubmit={onSubmit} noValidate className="space-y-4">
+        {errors.root?.type === "EMAIL_NOT_VERIFIED" ? (
+          <div className="space-y-3">
+            <Alert>
+              <AlertCircle />
+              <AlertDescription>{errors.root.message}</AlertDescription>
+            </Alert>
+            <ResendVerificationButton email={getValues("email")} next={next} />
+          </div>
+        ) : (
+          errors.root?.message && (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertDescription>{errors.root.message}</AlertDescription>
+            </Alert>
+          )
+        )}
+        <FormField
+          id="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          error={errors.email}
+          {...register("email")}
+        />
+        <FormField
+          id="password"
+          label="Password"
+          type="password"
+          autoComplete="current-password"
+          error={errors.password}
+          {...register("password")}
+        />
+        <div className="-mt-2 text-right">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Forgot password?
+          </Link>
         </div>
-      ) : (
-        errors.root?.message && (
-          <Alert variant="destructive">
-            <AlertCircle />
-            <AlertDescription>{errors.root.message}</AlertDescription>
-          </Alert>
-        )
-      )}
-      <FormField
-        id="email"
-        label="Email"
-        type="email"
-        autoComplete="email"
-        error={errors.email}
-        {...register("email")}
-      />
-      <FormField
-        id="password"
-        label="Password"
-        type="password"
-        autoComplete="current-password"
-        error={errors.password}
-        {...register("password")}
-      />
-      <div className="-mt-2 text-right">
-        <Link
-          href="/forgot-password"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-        >
-          Forgot password?
-        </Link>
-      </div>
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Logging in…" : "Log in"}
-      </Button>
-    </form>
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Logging in…" : "Log in"}
+        </Button>
+      </form>
+      <DemoAccounts />
+    </div>
   );
 }

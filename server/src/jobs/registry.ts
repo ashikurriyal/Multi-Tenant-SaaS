@@ -1,6 +1,7 @@
 import { cleanup } from './cleanup';
 import { mrrSnapshot } from './mrrSnapshot';
 import { reconcileStripe } from './reconcileStripe';
+import { resetDemo } from './resetDemo';
 import { reportUsage } from './reportUsage';
 import { retryWebhooks } from './retryWebhooks';
 import { rollFreePeriods } from './rollFreePeriods';
@@ -30,6 +31,7 @@ export const jobs: Job[] = [
   { name: 'reconcile-stripe', schedule: '0 1 * * *', run: reconcileStripe }, // daily 01:00 UTC
   { name: 'verify-usage-counters', schedule: '30 1 * * *', run: verifyUsageCounters }, // 01:30
   { name: 'cleanup', schedule: '15 3 * * *', run: cleanup }, // daily 03:15 UTC
+  { name: 'reset-demo', schedule: '30 3 * * *', run: resetDemo }, // daily 03:30 UTC
 ];
 
 export const findJob = (name: string) => jobs.find((job) => job.name === name);

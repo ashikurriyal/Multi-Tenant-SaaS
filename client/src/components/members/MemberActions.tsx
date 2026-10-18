@@ -24,9 +24,10 @@ const errorMessage = (err: unknown) =>
   getApiError(err as Parameters<typeof getApiError>[0])?.message ?? "Something went wrong";
 
 export function MemberRoleCell({ member }: { member: Member }) {
-  const { org, role: myRole, can } = useActiveOrg();
+  const { org, role: myRole, can, isDemo } = useActiveOrg();
   const [changeRole, { isLoading }] = useChangeMemberRoleMutation();
   if (!org || !myRole) return null;
+  if (isDemo) return <RoleBadge role={member.role} />; // turned off in the shared demo
 
   // Only Owners grant or remove Owner (FR-ORG-05); the API checks it again
   const options = ROLES.filter((r) => r === member.role || canAssignRole(myRole, member.role, r));
@@ -60,9 +61,9 @@ export function MemberRoleCell({ member }: { member: Member }) {
 
 export function MemberRemoveCell({ member }: { member: Member }) {
   const router = useRouter();
-  const { me, org, role: myRole, can } = useActiveOrg();
+  const { me, org, role: myRole, can, isDemo } = useActiveOrg();
   const [removeMember, { isLoading }] = useRemoveMemberMutation();
-  if (!me || !org || !myRole) return null;
+  if (!me || !org || !myRole || isDemo) return null;
 
   const isSelf = member.user.id === me.id;
   const canRemove =

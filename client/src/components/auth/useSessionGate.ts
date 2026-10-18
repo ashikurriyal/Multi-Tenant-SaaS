@@ -13,11 +13,13 @@ export function useSessionGate() {
   const router = useRouter();
   const pathname = usePathname();
   const status = useAppSelector((s) => s.auth.status);
+  const afterLogout = useAppSelector((s) => s.auth.afterLogout);
   const { data: me } = useGetMeQuery(undefined, { skip: status !== "authenticated" });
 
   useEffect(() => {
-    if (status === "unauthenticated") router.replace(loginPathWithNext(pathname));
-  }, [status, pathname, router]);
+    // A deliberate logout already chose its destination; an ended session comes back here
+    if (status === "unauthenticated") router.replace(afterLogout ?? loginPathWithNext(pathname));
+  }, [status, afterLogout, pathname, router]);
 
   // Same skeleton as the server HTML until hydration is done (see useHydrated)
   const ready = hydrated && status === "authenticated" && Boolean(me);

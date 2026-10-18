@@ -12,15 +12,19 @@ export function useLogout() {
   const dispatch = useAppDispatch();
   const [logout, { isLoading }] = useLogoutMutation();
 
-  const run = useCallback(async () => {
-    // Clear the local session even if the request fails (e.g. offline)
-    await logout()
-      .unwrap()
-      .catch(() => undefined);
-    dispatch(loggedOut());
-    dispatch(baseApi.util.resetApiState());
-    router.replace("/login");
-  }, [dispatch, logout, router]);
+  // `to`: where to go afterwards, e.g. /register from the demo banner
+  const run = useCallback(
+    async (to = "/login") => {
+      // Clear the local session even if the request fails (e.g. offline)
+      await logout()
+        .unwrap()
+        .catch(() => undefined);
+      dispatch(loggedOut(to));
+      dispatch(baseApi.util.resetApiState());
+      router.replace(to);
+    },
+    [dispatch, logout, router],
+  );
 
   return { logout: run, isLoggingOut: isLoading };
 }

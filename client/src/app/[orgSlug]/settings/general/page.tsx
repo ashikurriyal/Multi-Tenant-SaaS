@@ -15,7 +15,7 @@ import { organizationNameSchema, type OrganizationNameValues } from "@/schemas/o
 
 // FR-ORG-04: rename (org:update); the slug never changes
 export default function GeneralSettingsPage() {
-  const { org, can } = useActiveOrg();
+  const { org, can, isDemo } = useActiveOrg();
   const [update, { isLoading }] = useUpdateOrganizationMutation();
   const {
     register,
@@ -57,7 +57,13 @@ export default function GeneralSettingsPage() {
         <CardHeader>
           <CardTitle>Organization name</CardTitle>
           <CardDescription>
-            The URL stays <span className="font-mono">/{org.slug}</span> after renaming.
+            {isDemo ? (
+              "Renaming is turned off in the demo, so the next visitor sees the same organization."
+            ) : (
+              <>
+                The URL stays <span className="font-mono">/{org.slug}</span> after renaming.
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -67,9 +73,19 @@ export default function GeneralSettingsPage() {
             className="flex flex-col gap-4 sm:flex-row sm:items-start"
           >
             <div className="flex-1">
-              <FormField id="org-name" label="Name" error={errors.name} {...register("name")} />
+              <FormField
+                id="org-name"
+                label="Name"
+                error={errors.name}
+                disabled={isDemo}
+                {...register("name")}
+              />
             </div>
-            <Button type="submit" className="sm:mt-[22px]" disabled={!isDirty || isLoading}>
+            <Button
+              type="submit"
+              className="sm:mt-[22px]"
+              disabled={isDemo || !isDirty || isLoading}
+            >
               {isLoading ? "Saving…" : "Save"}
             </Button>
           </form>
