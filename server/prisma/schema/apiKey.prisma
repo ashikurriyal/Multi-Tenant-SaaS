@@ -14,5 +14,6 @@ model ApiKey {
   usageEvents  UsageEvent[]
 
   @@index([organizationId])
+  @@index([createdById])
   @@map("api_keys")
 }

@@ -302,6 +302,9 @@ CREATE UNIQUE INDEX "invitations_tokenHash_key" ON "invitations"("tokenHash");
 CREATE INDEX "invitations_organizationId_email_idx" ON "invitations"("organizationId", "email");
 
 -- CreateIndex
+CREATE INDEX "invitations_invitedById_idx" ON "invitations"("invitedById");
+
+-- CreateIndex
 CREATE INDEX "refresh_tokens_userId_idx" ON "refresh_tokens"("userId");
 
 -- CreateIndex
@@ -335,10 +338,16 @@ CREATE UNIQUE INDEX "subscriptions_stripeSubscriptionId_key" ON "subscriptions"(
 CREATE INDEX "subscriptions_status_idx" ON "subscriptions"("status");
 
 -- CreateIndex
+CREATE INDEX "subscriptions_planId_idx" ON "subscriptions"("planId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "invoices_stripeInvoiceId_key" ON "invoices"("stripeInvoiceId");
 
 -- CreateIndex
 CREATE INDEX "invoices_organizationId_periodStart_idx" ON "invoices"("organizationId", "periodStart");
+
+-- CreateIndex
+CREATE INDEX "invoices_subscriptionId_idx" ON "invoices"("subscriptionId");
 
 -- CreateIndex
 CREATE INDEX "stripe_events_status_nextAttemptAt_idx" ON "stripe_events"("status", "nextAttemptAt");
@@ -348,6 +357,9 @@ CREATE UNIQUE INDEX "api_keys_keyHash_key" ON "api_keys"("keyHash");
 
 -- CreateIndex
 CREATE INDEX "api_keys_organizationId_idx" ON "api_keys"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "api_keys_createdById_idx" ON "api_keys"("createdById");
 
 -- CreateIndex
 CREATE INDEX "usage_events_organizationId_metric_occurredAt_idx" ON "usage_events"("organizationId", "metric", "occurredAt");
@@ -362,13 +374,28 @@ CREATE INDEX "usage_events_occurredAt_idx" ON "usage_events"("occurredAt");
 CREATE INDEX "usage_events_billable_reportedToStripeAt_idx" ON "usage_events"("billable", "reportedToStripeAt");
 
 -- CreateIndex
+CREATE INDEX "usage_events_apiKeyId_idx" ON "usage_events"("apiKeyId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "usage_events_organizationId_idempotencyKey_key" ON "usage_events"("organizationId", "idempotencyKey");
+
+-- CreateIndex
+CREATE INDEX "mrr_snapshots_organizationId_day_idx" ON "mrr_snapshots"("organizationId", "day");
+
+-- CreateIndex
+CREATE INDEX "mrr_snapshots_planId_idx" ON "mrr_snapshots"("planId");
 
 -- CreateIndex
 CREATE INDEX "audit_logs_organizationId_createdAt_idx" ON "audit_logs"("organizationId", "createdAt");
 
 -- CreateIndex
+CREATE INDEX "audit_logs_actorId_idx" ON "audit_logs"("actorId");
+
+-- CreateIndex
 CREATE INDEX "email_outbox_status_createdAt_idx" ON "email_outbox"("status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "email_outbox_organizationId_idx" ON "email_outbox"("organizationId");
 
 -- CreateIndex
 CREATE INDEX "rate_limits_resetAt_idx" ON "rate_limits"("resetAt");

@@ -1315,7 +1315,7 @@ erDiagram
 
 ### 11.5 Prisma schema
 
-This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by five migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`, `demo_flag`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
+This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by six migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`, `demo_flag`, `fk_indexes`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
 
 The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out. The `usage_jobs` migration fills `periodStart` for existing usage events (the paid period they fall in, otherwise their calendar month) and leaves them `billable = false`, so nothing recorded before it is sent to Stripe.
 
@@ -1466,6 +1466,7 @@ model Invitation {
   invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
 
   @@index([organizationId, email])
+  @@index([invitedById])
   @@map("invitations")
 }
 
@@ -1542,6 +1543,7 @@ model Subscription {
   invoices     Invoice[]
 
   @@index([status])
+  @@index([planId])
   @@map("subscriptions")
 }
 
@@ -1564,6 +1566,7 @@ model Invoice {
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@index([organizationId, periodStart])
+  @@index([subscriptionId])
   @@map("invoices")
 }
 
@@ -1602,6 +1605,7 @@ model ApiKey {
   usageEvents  UsageEvent[]
 
   @@index([organizationId])
+  @@index([createdById])
   @@map("api_keys")
 }
 
@@ -1628,6 +1632,7 @@ model UsageEvent {
   @@index([organizationId, periodStart])
   @@index([occurredAt])
   @@index([billable, reportedToStripeAt])
+  @@index([apiKeyId])
   @@map("usage_events")
 }
 
@@ -1668,6 +1673,9 @@ model MrrSnapshot {
   plan         Plan         @relation(fields: [planId], references: [id])
 
   @@id([day, organizationId])
+  // The primary key starts with day; these serve per-organization lookups and cascades
+  @@index([organizationId, day])
+  @@index([planId])
   @@map("mrr_snapshots")
 }
 
@@ -1686,6 +1694,7 @@ model AuditLog {
   actor        User?         @relation("AuditActor", fields: [actorId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([actorId])
   @@map("audit_logs")
 }
 
@@ -1704,6 +1713,7 @@ model EmailOutbox {
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+  @@index([organizationId])
   @@map("email_outbox")
 }
 
@@ -1875,9 +1885,9 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | NFR-SEC-03 | Every `/orgs/:orgId` route checks membership (404 if none) and permission (403 if missing). Tenant data is read and written only through the tenant-scoped Prisma client. |
 | NFR-SEC-04 | All input validated with Zod; unknown fields stripped. |
 | NFR-SEC-05 | helmet security headers; CORS allows only `CLIENT_URL` with `credentials: true`; JSON body limit 100 kb. |
-| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Counters in PostgreSQL, shared by all instances, except the usage limit, which is counted in memory per instance (FR-USE-09). |
+| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Auth and email-link counters are in PostgreSQL, shared by all instances; the general API limit and the usage limit are counted in memory per instance, so ordinary API calls don't each cost an extra database write (FR-USE-09). The general limit skips the usage API and the scheduled-job routes; Stripe webhooks never reach it. |
 | NFR-SEC-07 | Secrets only in environment variables. `.env.example` committed; `.env` never. Separate Stripe keys and webhook secrets for development and production. |
-| NFR-SEC-08 | Logs never contain passwords, tokens, API keys or full webhook payloads. |
+| NFR-SEC-08 | Logs never contain passwords, tokens, API keys or full webhook payloads. The request log redacts invitation tokens in paths (`/invitations/<token>`, and the `Referer` from `/invite/<token>`) and `token`/`key`/`code` query values. |
 | NFR-SEC-09 | No account can act until its email address is verified (FR-AUTH-12). Endpoints that send links answer identically for every address, so they can't be used to discover which emails have accounts. |
 | NFR-SEC-10 | Scheduled-job routes require `CRON_SECRET` (compared in constant time) and don't exist when it isn't configured. |
 
@@ -2575,8 +2585,9 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 - [x] `reconcile-stripe` job
 - [x] Failed-webhooks admin page
-- [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
-- [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
+- [x] Rate limits, helmet, CORS, body limits; security checklist (20.3)
+- [x] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries (every foreign key now indexed: migration `fk_indexes`; all dashboard/admin queries under 3 ms on the seeded data)
+- [ ] Lighthouse pass
 - [x] Audit log page
 - [ ] Empty/loading/error states everywhere (review)
 - [x] Demo accounts: one-click buttons on the login page, demo banner, restricted actions turned off in the UI
@@ -2713,17 +2724,19 @@ Vercel deploys both projects automatically from `main`. Branch rulesets on GitHu
 
 ### 20.3 Security checklist
 
-- [ ] `.env` in `.gitignore`; `.env.example` lists every variable from section 15
-- [ ] Different Stripe keys and webhook secrets for local and production
-- [ ] Webhook verified on the raw body; route mounted before `express.json()`
-- [ ] Refresh cookie: `httpOnly`, `secure` in production, `sameSite: 'lax'`, `path: '/api/v1/auth'`
-- [ ] Access token only in Redux memory, never `localStorage`
-- [ ] bcrypt for passwords; SHA-256 hashes for API keys and invitation tokens
-- [ ] helmet, CORS allowlist with `credentials: true`, 100 kb body limit, rate limits
-- [ ] All input validated with Zod; raw SQL only via tagged templates
-- [ ] `404` for other organizations' resources; permission checked on every route
-- [ ] No passwords, tokens, keys or card data in logs
-- [ ] GitHub Dependabot alerts enabled
+Reviewed in `chore/hardening` (2026-10-19):
+
+- [x] `.env` in `.gitignore`; `.env.example` lists every variable the config reads
+- [x] Webhook secrets differ between local (`stripe listen`) and production. *Deliberate exception:* both environments use the same Stripe **test-mode** account (one sandbox, no real money); each ignores the other's customers
+- [x] Webhook verified on the raw body (1 MB limit); route mounted before `express.json()`
+- [x] Refresh cookie: `httpOnly`, `secure` in production, `sameSite: 'lax'`, `path: '/api/v1/auth'`
+- [x] Access token only in Redux memory, never `localStorage`
+- [x] bcrypt for passwords (a dummy hash is compared for unknown emails, so timing doesn't reveal accounts); SHA-256 hashes for API keys and link tokens; JWTs pinned to HS256
+- [x] helmet, CORS allowlist with `credentials: true`, 100 kb JSON body limit, rate limits (auth, email links, demo login, usage, and the general 300/min/IP limit). The website adds `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy` (no CSP yet)
+- [x] All input validated with Zod; raw SQL only via tagged templates (no `$queryRawUnsafe`)
+- [x] `404` for other organizations' resources; permission checked on every route (`npm run verify:tenancy`)
+- [x] No passwords, tokens, keys or card data in logs (request-log redaction, NFR-SEC-08)
+- [x] GitHub Dependabot updates configured (`.github/dependabot.yml`)
 
 ---
 

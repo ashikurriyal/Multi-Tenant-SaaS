@@ -27,24 +27,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
+        with: { sparse-checkout: .github/scripts }
       - name: Run send-emails
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/send-emails"
+        run: bash .github/scripts/run-job.sh send-emails 120 2
       - name: Run retry-webhooks
         # Stripe events whose processing failed or never finished (FR-WH-07)
         if: ${{ always() }}
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/retry-webhooks"
+        run: bash .github/scripts/run-job.sh retry-webhooks 120 2
 
       - name: Run report-usage
         # Billable usage → Stripe's meter; Stripe accepts it until about an hour after a period ends
@@ -52,10 +48,7 @@ jobs:
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 280 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/report-usage"
+        run: bash .github/scripts/run-job.sh report-usage 280 2
 
       - name: Run usage-rollup
         # Daily usage totals for the charts (last three days, recomputed)
@@ -63,10 +56,7 @@ jobs:
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/usage-rollup"
+        run: bash .github/scripts/run-job.sh usage-rollup 120 2
 
   daily:
     name: reconcile, cleanup, usage checks, MRR, demo
@@ -77,24 +67,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v7
+        with: { sparse-checkout: .github/scripts }
       - name: Run reconcile-stripe
         # Compares every subscription with Stripe and fixes drift (FR-WH-09)
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 280 --retry 1 --retry-delay 30 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/reconcile-stripe"
+        run: bash .github/scripts/run-job.sh reconcile-stripe 280 1
       - name: Run cleanup
         if: ${{ always() }}
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/cleanup"
+        run: bash .github/scripts/run-job.sh cleanup 120 2
 
       - name: Run roll-free-periods
         # Free subscriptions whose month has ended → current month
@@ -102,10 +88,7 @@ jobs:
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/roll-free-periods"
+        run: bash .github/scripts/run-job.sh roll-free-periods 120 2
 
       - name: Run verify-usage-counters
         # usage_counters must equal the sum of their events; repaired and audited if not
@@ -113,10 +96,7 @@ jobs:
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/verify-usage-counters"
+        run: bash .github/scripts/run-job.sh verify-usage-counters 120 2
 
       - name: Run mrr-snapshot
         # Today's MRR per organization, for the admin revenue charts (FR-AN-02)
@@ -124,10 +104,7 @@ jobs:
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/mrr-snapshot"
+        run: bash .github/scripts/run-job.sh mrr-snapshot 120 2
 
       - name: Run reset-demo
         # Recreates the demo organizations (does nothing unless DEMO_ENABLED=true on the API)
@@ -135,7 +112,4 @@ jobs:
         env:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          curl --fail-with-body --silent --show-error --max-time 280 --retry 1 --retry-delay 30 \
-            -X POST -H "Authorization: Bearer $CRON_SECRET" \
-            "$API_BASE_URL/api/v1/internal/jobs/reset-demo"
+        run: bash .github/scripts/run-job.sh reset-demo 280 1

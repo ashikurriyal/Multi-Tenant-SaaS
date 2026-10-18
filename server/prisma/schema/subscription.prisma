@@ -17,5 +17,6 @@ model Subscription {
   invoices     Invoice[]
 
   @@index([status])
+  @@index([planId])
   @@map("subscriptions")
 }
