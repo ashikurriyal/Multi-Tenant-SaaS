@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut, Shield } from "lucide-react";
+import Link from "next/link";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -41,6 +42,14 @@ export default function UserMenu() {
               {me.email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {me.platformRole === "SUPER_ADMIN" && (
+              <DropdownMenuItem asChild>
+                <Link href="/admin">
+                  <Shield className="size-4" />
+                  Platform admin
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => void logout()} disabled={isLoggingOut}>
               <LogOut className="size-4" />
               {isLoggingOut ? "Logging out…" : "Log out"}

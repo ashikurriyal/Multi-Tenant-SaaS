@@ -2470,9 +2470,9 @@ useEffect(() => {
 | `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke, a copyable `curl` example | Show-once dialog with copy button (can't be closed by a stray click; the key is dropped from memory when it closes); create disabled at 10 active keys |
 | `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes | Paginated |
 | `/[orgSlug]/settings/profile` | Everyone | Name, password | — |
-| `/admin` | Super admin | MRR chart, movements table, churn/NRR/ARPA cards | — |
-| `/admin/tenants` | Super admin | Searchable organizations table | — |
-| `/admin/webhooks` | Super admin | Failed webhook events | — |
+| `/admin` | Super admin | MRR chart, movements chart and table, MRR / paying customers + ARPA / churn / NRR cards | 6, 12 or 24 months in `?months`; churn and NRR cards use the last complete month (a partial month understates them). Others get 404; a super admin without an organization lands here after login; "Platform admin" in the user menu |
+| `/admin/tenants` | Super admin | Organizations table: plan, status, members, MRR, created | Search (debounced), plan and status filters and page in the URL |
+| `/admin/webhooks` | Super admin | Webhook inbox: type, attempts (exhausted retries flagged), last error, next attempt | Failed by default; tabs for waiting, processing and processed; page in the URL |
 
 ### 17.2 State management rules
 
@@ -2535,7 +2535,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Usage summary and daily endpoints
 - [x] Dashboard and usage pages with charts; API keys page (show-once dialog); 80%/100% usage banners
 - [x] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn/tenants/webhook-events endpoints
-- [ ] Admin pages
+- [x] Admin pages (revenue, organizations, webhooks)
 - [ ] Seed 12 months of history
 
 **Done when:** the admin dashboard shows a believable year of MRR, and the concurrency script (19.4) never exceeds the Free limit.
@@ -2543,7 +2543,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 ### Phase 4 — Hardening and launch (weeks 7–8)
 
 - [x] `reconcile-stripe` job
-- [ ] Failed-webhooks admin page
+- [x] Failed-webhooks admin page
 - [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
 - [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
 - [ ] Audit log page; empty/loading/error states everywhere
