@@ -1,7 +1,11 @@
 import { cleanup } from './cleanup';
 import { reconcileStripe } from './reconcileStripe';
+import { reportUsage } from './reportUsage';
 import { retryWebhooks } from './retryWebhooks';
+import { rollFreePeriods } from './rollFreePeriods';
 import { sendEmails } from './sendEmails';
+import { usageRollup } from './usageRollup';
+import { verifyUsageCounters } from './verifyUsageCounters';
 
 export type JobResult = Record<string, number | string>;
 
@@ -18,7 +22,11 @@ export type Job = {
 export const jobs: Job[] = [
   { name: 'send-emails', schedule: '* * * * *', run: sendEmails },
   { name: 'retry-webhooks', schedule: '* * * * *', run: retryWebhooks },
+  { name: 'report-usage', schedule: '*/5 * * * *', run: reportUsage },
+  { name: 'usage-rollup', schedule: '5 * * * *', run: usageRollup }, // hourly at :05
+  { name: 'roll-free-periods', schedule: '1 0 * * *', run: rollFreePeriods }, // daily 00:01 UTC
   { name: 'reconcile-stripe', schedule: '0 1 * * *', run: reconcileStripe }, // daily 01:00 UTC
+  { name: 'verify-usage-counters', schedule: '30 1 * * *', run: verifyUsageCounters }, // 01:30
   { name: 'cleanup', schedule: '15 3 * * *', run: cleanup }, // daily 03:15 UTC
 ];
 

@@ -793,74 +793,86 @@
 <!-- usage_events -->
 <g id="node12" class="node">
 <title>usage_events</title>
-<polygon fill="#059669" stroke="none" points="523.45,-258.5 523.45,-281.5 779.45,-281.5 779.45,-258.5 523.45,-258.5"/>
-<text text-anchor="start" x="527.45" y="-266.8" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="white">usage_events</text>
-<polygon fill="#ecfdf5" stroke="none" points="523.45,-237.5 523.45,-258.5 557.45,-258.5 557.45,-237.5 523.45,-237.5"/>
-<text text-anchor="start" x="527.45" y="-246.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="9.00" fill="#2563eb">PK</text>
-<polygon fill="#ecfdf5" stroke="none" points="557.45,-237.5 557.45,-258.5 707.45,-258.5 707.45,-237.5 557.45,-237.5"/>
-<text text-anchor="start" x="561.45" y="-245.6" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00" fill="#1f2937">id</text>
-<polygon fill="#ecfdf5" stroke="none" points="707.45,-237.5 707.45,-258.5 779.45,-258.5 779.45,-237.5 707.45,-237.5"/>
-<text text-anchor="start" x="711.45" y="-245" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">bigint</text>
-<polygon fill="#ecfdf5" stroke="none" points="523.45,-216.5 523.45,-237.5 557.45,-237.5 557.45,-216.5 523.45,-216.5"/>
-<text text-anchor="start" x="527.45" y="-225.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="9.00" fill="#d97706">FK</text>
-<polygon fill="#ecfdf5" stroke="none" points="557.45,-216.5 557.45,-237.5 707.45,-237.5 707.45,-216.5 557.45,-216.5"/>
-<text text-anchor="start" x="561.45" y="-223.6" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">organizationId</text>
-<polygon fill="#ecfdf5" stroke="none" points="707.45,-216.5 707.45,-237.5 779.45,-237.5 779.45,-216.5 707.45,-216.5"/>
-<text text-anchor="start" x="711.45" y="-224" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
-<polygon fill="#ecfdf5" stroke="none" points="523.45,-195.5 523.45,-216.5 557.45,-216.5 557.45,-195.5 523.45,-195.5"/>
-<text text-anchor="start" x="527.45" y="-204.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="9.00" fill="#d97706">FK</text>
-<polygon fill="#ecfdf5" stroke="none" points="557.45,-195.5 557.45,-216.5 707.45,-216.5 707.45,-195.5 557.45,-195.5"/>
-<text text-anchor="start" x="561.45" y="-202.6" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">apiKeyId</text>
-<polygon fill="#ecfdf5" stroke="none" points="707.45,-195.5 707.45,-216.5 779.45,-216.5 779.45,-195.5 707.45,-195.5"/>
-<text text-anchor="start" x="711.45" y="-203" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
+<polygon fill="#059669" stroke="none" points="523.45,-282.5 523.45,-305.5 779.45,-305.5 779.45,-282.5 523.45,-282.5"/>
+<text text-anchor="start" x="527.45" y="-290.8" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="white">usage_events</text>
+<polygon fill="#ecfdf5" stroke="none" points="523.45,-261.5 523.45,-282.5 557.45,-282.5 557.45,-261.5 523.45,-261.5"/>
+<text text-anchor="start" x="527.45" y="-270.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="9.00" fill="#2563eb">PK</text>
+<polygon fill="#ecfdf5" stroke="none" points="557.45,-261.5 557.45,-282.5 707.45,-282.5 707.45,-261.5 557.45,-261.5"/>
+<text text-anchor="start" x="561.45" y="-269.6" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="11.00" fill="#1f2937">id</text>
+<polygon fill="#ecfdf5" stroke="none" points="707.45,-261.5 707.45,-282.5 779.45,-282.5 779.45,-261.5 707.45,-261.5"/>
+<text text-anchor="start" x="711.45" y="-269" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">bigint</text>
+<polygon fill="#ecfdf5" stroke="none" points="523.45,-240.5 523.45,-261.5 557.45,-261.5 557.45,-240.5 523.45,-240.5"/>
+<text text-anchor="start" x="527.45" y="-249.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="9.00" fill="#d97706">FK</text>
+<polygon fill="#ecfdf5" stroke="none" points="557.45,-240.5 557.45,-261.5 707.45,-261.5 707.45,-240.5 557.45,-240.5"/>
+<text text-anchor="start" x="561.45" y="-247.6" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">organizationId</text>
+<polygon fill="#ecfdf5" stroke="none" points="707.45,-240.5 707.45,-261.5 779.45,-261.5 779.45,-240.5 707.45,-240.5"/>
+<text text-anchor="start" x="711.45" y="-248" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
+<polygon fill="#ecfdf5" stroke="none" points="523.45,-219.5 523.45,-240.5 557.45,-240.5 557.45,-219.5 523.45,-219.5"/>
+<text text-anchor="start" x="527.45" y="-228.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="9.00" fill="#d97706">FK</text>
+<polygon fill="#ecfdf5" stroke="none" points="557.45,-219.5 557.45,-240.5 707.45,-240.5 707.45,-219.5 557.45,-219.5"/>
+<text text-anchor="start" x="561.45" y="-226.6" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">apiKeyId</text>
+<polygon fill="#ecfdf5" stroke="none" points="707.45,-219.5 707.45,-240.5 779.45,-240.5 779.45,-219.5 707.45,-219.5"/>
+<text text-anchor="start" x="711.45" y="-227" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
+<polygon fill="#ecfdf5" stroke="none" points="523.45,-195.5 523.45,-219.5 557.45,-219.5 557.45,-195.5 523.45,-195.5"/>
+<text text-anchor="start" x="527.45" y="-202.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
+<polygon fill="#ecfdf5" stroke="none" points="557.45,-195.5 557.45,-219.5 707.45,-219.5 707.45,-195.5 557.45,-195.5"/>
+<text text-anchor="start" x="561.45" y="-204.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">metric</text>
+<polygon fill="#ecfdf5" stroke="none" points="707.45,-195.5 707.45,-219.5 779.45,-219.5 779.45,-195.5 707.45,-195.5"/>
+<text text-anchor="start" x="711.45" y="-204.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
 <polygon fill="#ecfdf5" stroke="none" points="523.45,-171.5 523.45,-195.5 557.45,-195.5 557.45,-171.5 523.45,-171.5"/>
 <text text-anchor="start" x="527.45" y="-178.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
 <polygon fill="#ecfdf5" stroke="none" points="557.45,-171.5 557.45,-195.5 707.45,-195.5 707.45,-171.5 557.45,-171.5"/>
-<text text-anchor="start" x="561.45" y="-180.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">metric</text>
+<text text-anchor="start" x="561.45" y="-180.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">quantity</text>
 <polygon fill="#ecfdf5" stroke="none" points="707.45,-171.5 707.45,-195.5 779.45,-195.5 779.45,-171.5 707.45,-171.5"/>
-<text text-anchor="start" x="711.45" y="-180.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
+<text text-anchor="start" x="711.45" y="-180.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">int</text>
 <polygon fill="#ecfdf5" stroke="none" points="523.45,-147.5 523.45,-171.5 557.45,-171.5 557.45,-147.5 523.45,-147.5"/>
 <text text-anchor="start" x="527.45" y="-154.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
 <polygon fill="#ecfdf5" stroke="none" points="557.45,-147.5 557.45,-171.5 707.45,-171.5 707.45,-147.5 557.45,-147.5"/>
-<text text-anchor="start" x="561.45" y="-156.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">quantity</text>
+<text text-anchor="start" x="561.45" y="-156.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">idempotencyKey</text>
 <polygon fill="#ecfdf5" stroke="none" points="707.45,-147.5 707.45,-171.5 779.45,-171.5 779.45,-147.5 707.45,-147.5"/>
-<text text-anchor="start" x="711.45" y="-156.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">int</text>
+<text text-anchor="start" x="711.45" y="-156.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
 <polygon fill="#ecfdf5" stroke="none" points="523.45,-123.5 523.45,-147.5 557.45,-147.5 557.45,-123.5 523.45,-123.5"/>
 <text text-anchor="start" x="527.45" y="-130.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
 <polygon fill="#ecfdf5" stroke="none" points="557.45,-123.5 557.45,-147.5 707.45,-147.5 707.45,-123.5 557.45,-123.5"/>
-<text text-anchor="start" x="561.45" y="-132.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">idempotencyKey</text>
+<text text-anchor="start" x="561.45" y="-132.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">occurredAt</text>
 <polygon fill="#ecfdf5" stroke="none" points="707.45,-123.5 707.45,-147.5 779.45,-147.5 779.45,-123.5 707.45,-123.5"/>
-<text text-anchor="start" x="711.45" y="-132.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">varchar</text>
+<text text-anchor="start" x="711.45" y="-132.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">timestamp</text>
 <polygon fill="#ecfdf5" stroke="none" points="523.45,-99.5 523.45,-123.5 557.45,-123.5 557.45,-99.5 523.45,-99.5"/>
 <text text-anchor="start" x="527.45" y="-106.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
 <polygon fill="#ecfdf5" stroke="none" points="557.45,-99.5 557.45,-123.5 707.45,-123.5 707.45,-99.5 557.45,-99.5"/>
-<text text-anchor="start" x="561.45" y="-108.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">occurredAt</text>
+<text text-anchor="start" x="561.45" y="-108.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">periodStart</text>
 <polygon fill="#ecfdf5" stroke="none" points="707.45,-99.5 707.45,-123.5 779.45,-123.5 779.45,-99.5 707.45,-99.5"/>
 <text text-anchor="start" x="711.45" y="-108.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">timestamp</text>
 <polygon fill="#ecfdf5" stroke="none" points="523.45,-75.5 523.45,-99.5 557.45,-99.5 557.45,-75.5 523.45,-75.5"/>
 <text text-anchor="start" x="527.45" y="-82.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
 <polygon fill="#ecfdf5" stroke="none" points="557.45,-75.5 557.45,-99.5 707.45,-99.5 707.45,-75.5 557.45,-75.5"/>
-<text text-anchor="start" x="561.45" y="-84.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">reportedToStripeAt?</text>
+<text text-anchor="start" x="561.45" y="-84.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">billable</text>
 <polygon fill="#ecfdf5" stroke="none" points="707.45,-75.5 707.45,-99.5 779.45,-99.5 779.45,-75.5 707.45,-75.5"/>
-<text text-anchor="start" x="711.45" y="-84.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">timestamp</text>
+<text text-anchor="start" x="711.45" y="-84.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">bool</text>
 <polygon fill="#ecfdf5" stroke="none" points="523.45,-51.5 523.45,-75.5 557.45,-75.5 557.45,-51.5 523.45,-51.5"/>
 <text text-anchor="start" x="527.45" y="-58.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
 <polygon fill="#ecfdf5" stroke="none" points="557.45,-51.5 557.45,-75.5 707.45,-75.5 707.45,-51.5 557.45,-51.5"/>
-<text text-anchor="start" x="561.45" y="-60.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">createdAt</text>
+<text text-anchor="start" x="561.45" y="-60.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">reportedToStripeAt?</text>
 <polygon fill="#ecfdf5" stroke="none" points="707.45,-51.5 707.45,-75.5 779.45,-75.5 779.45,-51.5 707.45,-51.5"/>
 <text text-anchor="start" x="711.45" y="-60.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">timestamp</text>
-<polygon fill="none" stroke="#059669" points="522.45,-50.5 522.45,-282.5 780.45,-282.5 780.45,-50.5 522.45,-50.5"/>
+<polygon fill="#ecfdf5" stroke="none" points="523.45,-27.5 523.45,-51.5 557.45,-51.5 557.45,-27.5 523.45,-27.5"/>
+<text text-anchor="start" x="527.45" y="-34.9" font-family="Helvetica,sans-Serif" font-size="14.00"> </text>
+<polygon fill="#ecfdf5" stroke="none" points="557.45,-27.5 557.45,-51.5 707.45,-51.5 707.45,-27.5 557.45,-27.5"/>
+<text text-anchor="start" x="561.45" y="-36.2" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#1f2937">createdAt</text>
+<polygon fill="#ecfdf5" stroke="none" points="707.45,-27.5 707.45,-51.5 779.45,-51.5 779.45,-27.5 707.45,-27.5"/>
+<text text-anchor="start" x="711.45" y="-36.5" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#6b7280">timestamp</text>
+<polygon fill="none" stroke="#059669" points="522.45,-26.5 522.45,-306.5 780.45,-306.5 780.45,-26.5 522.45,-26.5"/>
 </g>
 <!-- organizations&#45;&gt;usage_events -->
 <g id="edge13" class="edge">
 <title>organizations&#45;&gt;usage_events:organizationId</title>
-<path fill="none" stroke="#9ca3af" stroke-width="1.2" d="M1416.25,-825.11C1410.32,-789.23 1403.51,-747.69 1397.45,-710 1386.3,-640.71 1399,-446.68 1348.45,-398 1260.11,-312.94 916.12,-373.7 800.45,-333 744.91,-313.46 688.54,-273.11 657.27,-248.51"/>
+<path fill="none" stroke="#9ca3af" stroke-width="1.2" d="M1416.25,-825.11C1410.32,-789.23 1403.51,-747.69 1397.45,-710 1386.3,-640.71 1399,-446.68 1348.45,-398 1260.11,-312.94 918.18,-367.32 800.45,-333 749.62,-318.18 695.19,-289.25 662.49,-270.28"/>
 <polygon fill="#9ca3af" stroke="#9ca3af" stroke-width="1.2" points="1421.95,-832.01 1413.07,-833.47 1412.78,-831.7 1421.66,-830.23 1421.95,-832.01"/>
 <polyline fill="none" stroke="#9ca3af" stroke-width="1.2" points="1417.66,-833.63 1416.92,-829.19"/>
 <polygon fill="#9ca3af" stroke="#9ca3af" stroke-width="1.2" points="1421.22,-827.57 1412.34,-829.03 1412.04,-827.26 1420.92,-825.79 1421.22,-827.57"/>
 <polyline fill="none" stroke="#9ca3af" stroke-width="1.2" points="1416.92,-829.19 1416.19,-824.75"/>
-<polygon fill="#9ca3af" stroke="#9ca3af" stroke-width="1.2" points="650.66,-243.18 646.2,-234.38 646.85,-240.11 643.97,-237.78 643.97,-237.78 643.97,-237.78 646.85,-240.11 641.12,-240.68 650.66,-243.18"/>
-<ellipse fill="none" stroke="#9ca3af" stroke-width="1.2" cx="655.07" cy="-246.74" rx="3.6" ry="3.6"/>
+<polygon fill="#9ca3af" stroke="#9ca3af" stroke-width="1.2" points="655.59,-266.19 649.92,-258.12 651.37,-263.69 648.19,-261.8 648.19,-261.8 648.19,-261.8 651.37,-263.69 645.78,-265.08 655.59,-266.19"/>
+<ellipse fill="none" stroke="#9ca3af" stroke-width="1.2" cx="660.46" cy="-269.08" rx="3.6" ry="3.6"/>
 </g>
 <!-- usage_counters -->
 <g id="node13" class="node">
@@ -1217,9 +1229,9 @@
 <!-- api_keys&#45;&gt;usage_events -->
 <g id="edge14" class="edge">
 <title>api_keys&#45;&gt;usage_events:apiKeyId</title>
-<path fill="none" stroke="#9ca3af" stroke-width="1.2" d="M489.19,-185.79C505.94,-188.17 522.76,-190.56 538.67,-192.82"/>
-<polygon fill="#9ca3af" stroke="#9ca3af" stroke-width="1.2" points="548.25,-194.18 556.59,-199.45 553.1,-194.87 556.76,-195.39 556.76,-195.39 556.76,-195.39 553.1,-194.87 557.73,-191.44 548.25,-194.18"/>
-<ellipse fill="none" stroke="#9ca3af" stroke-width="1.2" cx="542.64" cy="-193.38" rx="3.6" ry="3.6"/>
+<path fill="none" stroke="#9ca3af" stroke-width="1.2" d="M489.19,-197.51C516.32,-203.7 543.62,-209.94 566.95,-215.27"/>
+<polygon fill="#9ca3af" stroke="#9ca3af" stroke-width="1.2" points="576.35,-217.42 584.23,-223.37 581.13,-218.51 584.74,-219.33 584.74,-219.33 584.74,-219.33 581.13,-218.51 586.03,-215.47 576.35,-217.42"/>
+<ellipse fill="none" stroke="#9ca3af" stroke-width="1.2" cx="570.83" cy="-216.16" rx="3.6" ry="3.6"/>
 </g>
 <!-- api_keys&#45;&gt;usage_events -->
 <!-- usage_events&#45;&gt;usage_counters -->

@@ -201,6 +201,8 @@ CREATE TABLE "usage_events" (
     "quantity" INTEGER NOT NULL,
     "idempotencyKey" TEXT NOT NULL,
     "occurredAt" TIMESTAMP(3) NOT NULL,
+    "periodStart" TIMESTAMP(3) NOT NULL,
+    "billable" BOOLEAN NOT NULL DEFAULT false,
     "reportedToStripeAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -350,7 +352,13 @@ CREATE INDEX "api_keys_organizationId_idx" ON "api_keys"("organizationId");
 CREATE INDEX "usage_events_organizationId_metric_occurredAt_idx" ON "usage_events"("organizationId", "metric", "occurredAt");
 
 -- CreateIndex
-CREATE INDEX "usage_events_reportedToStripeAt_idx" ON "usage_events"("reportedToStripeAt");
+CREATE INDEX "usage_events_organizationId_periodStart_idx" ON "usage_events"("organizationId", "periodStart");
+
+-- CreateIndex
+CREATE INDEX "usage_events_occurredAt_idx" ON "usage_events"("occurredAt");
+
+-- CreateIndex
+CREATE INDEX "usage_events_billable_reportedToStripeAt_idx" ON "usage_events"("billable", "reportedToStripeAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "usage_events_organizationId_idempotencyKey_key" ON "usage_events"("organizationId", "idempotencyKey");
