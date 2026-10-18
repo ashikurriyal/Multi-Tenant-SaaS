@@ -578,7 +578,7 @@ Only an Owner may grant or remove the Owner role.
 | --- | --- |
 | FR-AUD-01 | The system must write an `audit_logs` row for: member invited/joined/removed/role changed, API key created/revoked, checkout started, plan changed, subscription status changed, reconciliation corrections. |
 | FR-AUD-02 | Rows store `before` and `after` JSON for changes. Audit rows are never updated or deleted by the application. |
-| FR-AUD-03 | Users with `audit:read` may list their organization's audit log, newest first, with pagination. |
+| FR-AUD-03 | Users with `audit:read` may list their organization's audit log, newest first, with pagination and an optional `category` filter (`members`, `api_keys`, `billing`, `usage`, `organization`). |
 
 ### 9.12 Email (FR-MAIL)
 
@@ -973,6 +973,24 @@ The period and limits come from the same rules as ingestion (FR-USE-06): the Str
 ```
 
 Days are UTC; both ends are included. All parameters are optional: `to` defaults to today, `from` to 29 days before `to`, and without `metric` every metric is summed. `metrics` lists every metric seen in the range, for a filter. More than 90 days, or `from` after `to` → `400 VALIDATION_ERROR`.
+
+#### 32. Audit log — `GET /api/v1/orgs/:orgId/audit-logs?category=members&page=1&limit=10`
+
+```json
+{
+  "success": true, "statusCode": 200, "message": "Audit log retrieved",
+  "meta": { "page": 1, "limit": 10, "total": 37, "totalPages": 4 },
+  "data": [
+    { "id": "912", "action": "member.role_changed", "entityType": "Membership", "entityId": "6f1c…",
+      "before": { "role": "MEMBER" }, "after": { "role": "ADMIN" }, "createdAt": "2026-10-18T09:12:44.000Z",
+      "actor": { "id": "a41b…", "name": "Sarah Khan", "email": "sarah@acme.com" } },
+    { "id": "905", "action": "subscription.status_changed", "entityType": "Subscription", "entityId": "…",
+      "before": { "status": "ACTIVE" }, "after": { "status": "PAST_DUE" }, "createdAt": "…", "actor": null }
+  ]
+}
+```
+
+Owners and admins (`audit:read`). Newest first; `actor` is `null` when Stripe or a scheduled job made the change, and keeps the name of someone who has since left. `category` groups actions by prefix: `members` (`member.*`, `invitation.*`), `api_keys` (`apikey.*`), `billing` (`checkout.*`, `plan.*`, `subscription.*`, `reconciliation.*`), `usage` (`usage.*`), `organization` (`organization.*`). Ids are strings (BigInt).
 
 #### 34. Admin MRR — `GET /api/v1/admin/metrics/mrr?months=12`
 

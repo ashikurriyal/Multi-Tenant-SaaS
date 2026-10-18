@@ -4,6 +4,7 @@ import requireOrgMember from '../../middlewares/requireOrgMember';
 import requirePermission from '../../middlewares/requirePermission';
 import validateRequest from '../../middlewares/validateRequest';
 import { ApiKeyRoutes } from '../apiKey/apiKey.route';
+import { AuditRoutes } from '../audit/audit.route';
 import { BillingRoutes } from '../billing/billing.route';
 import { OrgInvitationRoutes } from '../invitation/invitation.route';
 import { MemberRoutes } from '../member/member.route';
@@ -53,6 +54,13 @@ router.use(
   requireOrgMember,
   requirePermission('usage:read'),
   OrgUsageRoutes,
+);
+router.use(
+  '/:orgId/audit-logs',
+  auth,
+  requireOrgMember,
+  requirePermission('audit:read'),
+  AuditRoutes,
 );
 
 export const OrganizationRoutes = router;
