@@ -1001,7 +1001,7 @@ Percentages have two decimals. `customerChurnPercent` and `nrrPercent` are `null
 
 #### 36. Admin tenants — `GET /api/v1/admin/tenants?search=acme&plan=PRO&status=ACTIVE&page=1&limit=10`
 
-Each row: `id`, `name`, `slug`, `createdAt`, `planCode`, `planName`, `status`, `accessLevel`, `cancelAtPeriodEnd`, `currentPeriodEnd`, `memberCount`, `mrrCents` (current, same rule as the snapshots). `search` matches the name (case-insensitive) or slug. Newest first, paginated (`meta`).
+Each row: `id`, `name`, `slug`, `isDemo`, `createdAt`, `planCode`, `planName`, `status`, `accessLevel`, `cancelAtPeriodEnd`, `currentPeriodEnd`, `memberCount`, `mrrCents` (current, same rule as the snapshots). `search` matches the name (case-insensitive) or slug. Newest first, paginated (`meta`).
 
 #### 37. Admin webhook events — `GET /api/v1/admin/webhook-events?status=FAILED&page=1&limit=10`
 
@@ -1055,6 +1055,7 @@ erDiagram
     string name
     string slug UK
     string stripeCustomerId UK "nullable"
+    boolean isDemo
     datetime createdAt
     datetime updatedAt
   }
@@ -1292,7 +1293,7 @@ erDiagram
 
 ### 11.5 Prisma schema
 
-This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by four migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
+This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by five migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`, `demo_flag`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
 
 The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out. The `usage_jobs` migration fills `periodStart` for existing usage events (the paid period they fall in, otherwise their calendar month) and leaves them `billable = false`, so nothing recorded before it is sent to Stripe.
 
@@ -1393,6 +1394,8 @@ model Organization {
   name             String
   slug             String   @unique
   stripeCustomerId String?  @unique
+  // Sample data from `npm run seed:demo`; re-running it deletes and recreates these only
+  isDemo           Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -1712,8 +1715,13 @@ export default defineConfig({
 
 1. The three plans (Free, Pro, Business) with their limits and prices. The seed never touches the Stripe price ids; run `npm run stripe:setup` afterwards to create the Stripe Products, Prices and Meter and link them.
 2. A super admin user (from `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`), already verified. Seeded demo users are verified too, so they can log in without an email.
-3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit.
-4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load.
+3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit. *Planned with the Phase 4 demo accounts: they need real Stripe test subscriptions for the billing demos.*
+4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load. **Implemented as a separate script, `npm run seed:demo`** (`server/scripts/seed-demo.ts`), so the production seed never adds sample data by accident:
+   - 40 organizations marked `organizations.isDemo = true`, each with an owner and members (within seat limits) at `@demo.ledgerflow.invalid` addresses: verified (so `cleanup` keeps them), random password (nobody can log in), and undeliverable. Nothing is created in Stripe and no usage events or counters are written, so `report-usage`, `reconcile-stripe` and `verify-usage-counters` have nothing to act on.
+   - A deterministic day-by-day simulation over 13 months: signups (more recently), conversions after 1–8 weeks, upgrades/downgrades on renewal days, ~5% churn per renewal, some reactivations, 2 past due (inside grace) and 2 cancelling at period end today.
+   - **Daily** MRR snapshots from signup to today, computed with `mrrCentsOf` (the `mrr-snapshot` job's rule; verified to give identical rows for today). Month-end-only rows would make the admin metrics see mass churn, because they use each month's last snapshot day.
+   - 90 days of usage rollups sized by plan (Free stays under its 1,000 units a month), quieter at weekends, slowly growing.
+   - Re-running deletes every `isDemo` organization and the sample users first, then recreates everything relative to today; `-- --remove` only deletes. Real organizations are never touched; a name collision gets another slug. Any database other than localhost requires `--yes`, and the target host is printed first. The admin organizations table marks these rows **Sample**.
 
 ---
 
@@ -2536,7 +2544,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Dashboard and usage pages with charts; API keys page (show-once dialog); 80%/100% usage banners
 - [x] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn/tenants/webhook-events endpoints
 - [x] Admin pages (revenue, organizations, webhooks)
-- [ ] Seed 12 months of history
+- [x] Seed 12 months of history (`npm run seed:demo`)
 
 **Done when:** the admin dashboard shows a believable year of MRR, and the concurrency script (19.4) never exceeds the Free limit.
 
