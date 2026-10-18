@@ -50,6 +50,7 @@ CREATE TABLE "organizations" (
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "stripeCustomerId" TEXT,
+    "isDemo" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

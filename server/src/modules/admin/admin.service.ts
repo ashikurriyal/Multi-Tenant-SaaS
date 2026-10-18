@@ -155,6 +155,7 @@ const listTenants = async (query: TTenantsQuery, now = new Date()) => {
         id: true,
         name: true,
         slug: true,
+        isDemo: true,
         createdAt: true,
         _count: { select: { memberships: true } },
         subscription: {

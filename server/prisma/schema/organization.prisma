@@ -3,6 +3,8 @@ model Organization {
   name             String
   slug             String   @unique
   stripeCustomerId String?  @unique
+  // Sample data from `npm run seed:demo`; re-running it deletes and recreates these only
+  isDemo           Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

@@ -164,7 +164,14 @@ export default function AdminTenantsPage() {
                 {data.data.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>
-                      <div className="font-medium">{t.name}</div>
+                      <div className="flex items-center gap-2 font-medium">
+                        {t.name}
+                        {t.isDemo && (
+                          <Badge variant="outline" title="Sample data from the demo seed">
+                            Sample
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">/{t.slug}</div>
                     </TableCell>
                     <TableCell>{t.planName}</TableCell>

@@ -51,6 +51,18 @@ npm run db:seed
 
 Values given on the command line win over `server/.env`, so your local `.env` is not used for these two commands.
 
+## Sample history for the admin charts (optional)
+
+A new database has no revenue history, so the admin charts start empty. To show a believable year (about 40 sample organizations with 12 months of MRR and 90 days of usage), run once per database:
+
+```bash
+cd server
+npm run seed:demo -- --yes                                                # database in .env
+DATABASE_URL="<ledgerflow-prod connection string>" npm run seed:demo -- --yes   # production
+```
+
+It prints the target database first, and refuses anything but localhost without `--yes`. The sample organizations are marked **Sample** in the admin table, their users can't log in or receive email, and nothing is created in Stripe. Running it again replaces the sample data (dates move to today); `npm run seed:demo -- --remove --yes` deletes it. Real organizations are never touched. It costs a few dozen database operations per run.
+
 ## Production email (Gmail)
 
 New accounts can't log in until they click the link in their verification email, so production email **must** deliver to real inboxes. The free option without owning a domain is Gmail:

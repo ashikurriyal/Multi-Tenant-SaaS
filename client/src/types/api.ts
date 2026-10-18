@@ -214,6 +214,7 @@ export type AdminTenant = {
   id: string;
   name: string;
   slug: string;
+  isDemo: boolean; // sample data from `npm run seed:demo`
   createdAt: string;
   planCode: string;
   planName: string;
