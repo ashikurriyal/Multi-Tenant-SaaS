@@ -9,9 +9,17 @@ type AuthState = {
   accessToken: string | null;
   user: AuthUser | null;
   status: AuthStatus;
+  // Where a deliberate logout goes (e.g. /register from the demo banner). Unset when the
+  // session simply ended, so the guards send the user to /login?next=<this page>
+  afterLogout: string | null;
 };
 
-const initialState: AuthState = { accessToken: null, user: null, status: "idle" };
+const initialState: AuthState = {
+  accessToken: null,
+  user: null,
+  status: "idle",
+  afterLogout: null,
+};
 
 const authSlice = createSlice({
   name: "auth",
@@ -24,6 +32,7 @@ const authSlice = createSlice({
       state.accessToken = action.payload.accessToken;
       state.user = action.payload.user;
       state.status = "authenticated";
+      state.afterLogout = null;
     },
     setAccessToken: (state, action: PayloadAction<string>) => {
       state.accessToken = action.payload;
@@ -32,7 +41,11 @@ const authSlice = createSlice({
       state.user = action.payload;
       state.status = "authenticated";
     },
-    loggedOut: () => ({ ...initialState, status: "unauthenticated" as const }),
+    loggedOut: (_state, action: PayloadAction<string | undefined>) => ({
+      ...initialState,
+      status: "unauthenticated" as const,
+      afterLogout: action.payload ?? null,
+    }),
   },
 });
 

@@ -58,6 +58,7 @@ export type OrganizationDetails = {
   id: string;
   name: string;
   slug: string;
+  isDemo: boolean; // a shared demo organization: some actions are turned off
   createdAt: string;
   myRole: OrgRole;
   entitlements: Entitlements;
@@ -254,4 +255,11 @@ export type AuditEntry = {
   createdAt: string;
   actor: AuditPerson | null; // null = Stripe or a scheduled job
   subject: AuditPerson | null; // the member a membership entry is about
+};
+
+// GET /demo/accounts (endpoint #44): the one-click accounts on the login page
+export type DemoAccount = {
+  account: "acme-owner" | "acme-billing" | "globex-owner" | "initech-owner";
+  label: string;
+  description: string;
 };

@@ -2579,7 +2579,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
 - [x] Audit log page
 - [ ] Empty/loading/error states everywhere (review)
-- [x] Demo accounts (server; login-page buttons in `feat/client-demo-accounts`)
+- [x] Demo accounts: one-click buttons on the login page, demo banner, restricted actions turned off in the UI
 - [ ] README, ERD in `docs/`, ADRs, 2-minute Loom walkthrough
 - [ ] Full run of the manual verification checklist on production
 
@@ -2757,6 +2757,7 @@ A reviewer spends about 90 seconds on your repository. Show the product, the arc
 - **Stripe:** Acme and Globex are real test-mode subscriptions on **test clocks**. Acme subscribed 12 days ago with `4242` (active, 12 days into its period, so plan-change prorations and the portal work). Globex's trial ended 2 days ago and the renewal charge failed on a declining card, so it is genuinely `past_due` with a 7-day grace period. The clocks stay frozen, so nothing renews or retries until the next reset. Without a Stripe key the same states are written to the database directly.
 - **Usage:** recorded like the usage API records it (events, counter, rollups) for the current period: Acme 81% of 50,000, Globex 34%, Initech 95% of 1,000, plus 90 days of chart history. Demo usage is never sent to Stripe.
 - **Guards:** in demo organizations, invitations, member and role changes (including leaving) and renaming answer `403 DEMO_RESTRICTED`; demo users can't create organizations, accept invitations or rename themselves. Everything else works (plan changes, portal, checkout, API keys, usage) and is undone by the reset.
+- **Client:** the login page lists the accounts from `GET /demo/accounts` (nothing shows when the list is empty). Inside a demo organization a banner names the demo user and offers "Create your own account" (signs out, then opens `/register`); the invite button, role menus, remove/leave and the rename form are shown as turned off instead of failing after a click.
 - **Reset:** the `reset-demo` job (nightly) and `npm run demo:reset -- --yes` delete the previous demo's Stripe objects (the test clock with its customer, or a customer a visitor created through Checkout) and the demo organizations and users of **this** database only, then rebuild everything (about 25 seconds). Visitors signed in at that moment are signed out.
 
 ### 21.3 Architecture decision records (one page each)
