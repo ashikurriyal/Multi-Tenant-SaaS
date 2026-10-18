@@ -7,6 +7,7 @@ import { ApiKeyRoutes } from '../apiKey/apiKey.route';
 import { BillingRoutes } from '../billing/billing.route';
 import { OrgInvitationRoutes } from '../invitation/invitation.route';
 import { MemberRoutes } from '../member/member.route';
+import { OrgUsageRoutes } from '../usage/usage.route';
 import { OrganizationController } from './organization.controller';
 import { OrganizationValidation } from './organization.validation';
 
@@ -45,6 +46,13 @@ router.use(
   requireOrgMember,
   requirePermission('members:manage'),
   OrgInvitationRoutes,
+);
+router.use(
+  '/:orgId/usage',
+  auth,
+  requireOrgMember,
+  requirePermission('usage:read'),
+  OrgUsageRoutes,
 );
 
 export const OrganizationRoutes = router;

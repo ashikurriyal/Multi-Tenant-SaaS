@@ -138,7 +138,7 @@ GitHub repository → **Settings → Secrets and variables → Actions**:
 - **Variables** tab → New variable: `API_BASE_URL` = `https://<your-api>.vercel.app`
 - **Secrets** tab → New secret: `CRON_SECRET` = secret #3 (the same value as in step 2)
 
-Then **Actions → Scheduled jobs → Run workflow**. The run should be green. Every 10 minutes it runs `send-emails`, `retry-webhooks`, `report-usage` and `usage-rollup`; once a day (03:15 UTC) `reconcile-stripe`, `cleanup`, `roll-free-periods` and `verify-usage-counters`.
+Then **Actions → Scheduled jobs → Run workflow**. The run should be green. Every 10 minutes it runs `send-emails`, `retry-webhooks`, `report-usage` and `usage-rollup`; once a day (03:15 UTC) `reconcile-stripe`, `cleanup`, `roll-free-periods`, `verify-usage-counters` and `mrr-snapshot`.
 
 ## 6. Check the live site
 

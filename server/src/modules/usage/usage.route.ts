@@ -17,3 +17,11 @@ router.post(
 );
 
 export const UsageRoutes = router;
+
+// /orgs/:orgId/usage — dashboard reads, for members with usage:read (guarded in organization.route)
+const orgRouter = Router({ mergeParams: true });
+
+orgRouter.get('/summary', UsageController.getSummary);
+orgRouter.get('/daily', validateRequest(UsageValidation.daily), UsageController.getDaily);
+
+export const OrgUsageRoutes = orgRouter;
