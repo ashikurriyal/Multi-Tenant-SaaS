@@ -14,7 +14,7 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
+    "db:deploy": "node scripts/migrate-deploy.mjs",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "verify:tenancy": "tsx scripts/verify-tenancy.ts",
