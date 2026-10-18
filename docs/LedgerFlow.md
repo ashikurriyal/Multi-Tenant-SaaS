@@ -1110,6 +1110,8 @@ erDiagram
     int quantity
     string idempotencyKey
     datetime occurredAt
+    datetime periodStart
+    boolean billable
     datetime reportedToStripeAt "nullable"
     datetime createdAt
   }
@@ -1220,7 +1222,7 @@ erDiagram
 | `invoices` | Stripe invoices | Upserted by `stripeInvoiceId`; never edited by users |
 | `stripe_events` | Webhook inbox | `id` = Stripe event id (dedupe); `status`, `attempts`, `nextAttemptAt` drive retries |
 | `api_keys` | Machine credentials | Only `keyHash` + `prefix` stored; max 10 active per organization |
-| `usage_events` | Every accepted usage report | Unique `(organizationId, idempotencyKey)`; `reportedToStripeAt` set after overage reporting |
+| `usage_events` | Every accepted usage report | Unique `(organizationId, idempotencyKey)`; `periodStart` = the `usage_counters` period it was added to; `billable` = recorded on a paid plan with full access, so reported to Stripe's meter; `reportedToStripeAt` set by `report-usage` |
 | `usage_counters` | Running total per billing period | Primary key `(organizationId, periodStart)`; incremented only by the atomic update in section 16.4 |
 | `usage_daily_rollups` | Daily totals for charts | Rebuilt by job; dashboards read this, not raw events |
 | `mrr_snapshots` | Daily MRR per organization | Written by job; source for all revenue analytics |
@@ -1243,9 +1245,9 @@ erDiagram
 
 ### 11.5 Prisma schema
 
-This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by three migrations (`init`, `rate_limits`, `email_verification`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
+This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by four migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
 
-The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out.
+The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out. The `usage_jobs` migration fills `periodStart` for existing usage events (the paid period they fall in, otherwise their calendar month) and leaves them `billable = false`, so nothing recorded before it is sent to Stripe.
 
 ```prisma
 // LedgerFlow — complete Prisma schema in one file, for reading.
@@ -1539,6 +1541,10 @@ model UsageEvent {
   quantity           Int
   idempotencyKey     String
   occurredAt         DateTime
+  // The usage_counters period this event was added to (Stripe period or Free calendar month)
+  periodStart        DateTime
+  // Recorded while the organization had a paid subscription: reported to Stripe's meter
+  billable           Boolean   @default(false)
   reportedToStripeAt DateTime?
   createdAt          DateTime  @default(now())
 
@@ -1547,7 +1553,9 @@ model UsageEvent {
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, metric, occurredAt])
-  @@index([reportedToStripeAt])
+  @@index([organizationId, periodStart])
+  @@index([occurredAt])
+  @@index([billable, reportedToStripeAt])
   @@map("usage_events")
 }
 
@@ -1768,12 +1776,12 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | --- | --- | --- |
 | `retry-webhooks` | Every minute (every 10 min in production) | Process `stripe_events` that are `RECEIVED` for over a minute or `FAILED` with `nextAttemptAt ≤ now`, `attempts < 5`, oldest first; reset `PROCESSING` rows older than 10 minutes to `FAILED` first |
 | `send-emails` | Every minute (every 10 min in production) | Send `email_outbox` rows with status `PENDING` or `FAILED` and `attempts < 5`; claim each row by bumping `attempts` atomically |
-| `report-usage` | Every 5 minutes | For paid organizations, send unreported `usage_events` to Stripe Billing Meters (identifier = usage event id, so Stripe ignores duplicates); set `reportedToStripeAt` |
-| `usage-rollup` | Every hour at :05 | Recompute today's and yesterday's `usage_daily_rollups` from `usage_events` (upsert) |
-| `roll-free-periods` | Daily 00:01 | Move Free subscriptions whose `currentPeriodEnd` has passed to the next calendar month |
+| `report-usage` | Every 5 minutes (every 10 min in production) | Send `billable` events without `reportedToStripeAt` (up to 500 per run, 10 at a time) to the Stripe Billing Meter: every unit, since the graduated price makes the included units free. Identifier `lf-<organizationId>-<eventId>` (unique across the development and production databases, which share one Stripe test account); Stripe refuses a repeated identifier with a 400 "already exists", which counts as reported, so a re-run never bills twice. Timestamp = the later of `occurredAt` and the event's `periodStart`, so Stripe puts it in the same period as the counter. Rows are marked per group of 10; failures stay unreported and are retried next run. Events older than 33 days are skipped (Stripe accepts 35). Stripe accepts usage for a period until about an hour after it ends, which the 10-minute schedule meets |
+| `usage-rollup` | Every hour at :05 (every 10 min in production) | Recompute the last three UTC days of `usage_daily_rollups` (per organization, metric and day of `occurredAt`) from `usage_events` in one `INSERT … SELECT … GROUP BY … ON CONFLICT DO UPDATE`; three days because usage may arrive 24 h late and a run may be late |
+| `roll-free-periods` | Daily 00:01 (03:15 in production) | Move Free-plan subscriptions whose `currentPeriodEnd` has passed to the current calendar month (UTC). Only for display: the usage limit already follows the calendar month (FR-USE-06) |
 | `mrr-snapshot` | Daily 00:15 | Write today's `mrr_snapshots` row for every organization |
 | `reconcile-stripe` | Daily 01:00 (03:15 with `cleanup` in production) | For every organization with a Stripe customer, re-sync its subscription from Stripe (also finding subscriptions whose webhooks never arrived) and audit each corrected field as `reconciliation.corrected` (FR-WH-09) |
-| `verify-usage-counters` | Daily 01:30 | Compare `usage_counters.units` with `SUM(usage_events.quantity)` for the current period; fix and log any drift |
+| `verify-usage-counters` | Daily 01:30 (03:15 in production) | For counters of periods that started in the last 40 days, compare `units` with `SUM(quantity)` of the events with the same `periodStart`. A drift is repaired after locking the counter row (`FOR UPDATE`, so every ingest that touched it has committed and the sum is exact), audited as `usage.counter_corrected` and logged |
 | `cleanup` | Daily 03:15 | Delete accounts unverified for 7 days (and organizations only they belong to), email tokens used or expired for more than a day, and ended `rate_limits` windows |
 
 ---
@@ -1789,7 +1797,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | NFR-SEC-03 | Every `/orgs/:orgId` route checks membership (404 if none) and permission (403 if missing). Tenant data is read and written only through the tenant-scoped Prisma client. |
 | NFR-SEC-04 | All input validated with Zod; unknown fields stripped. |
 | NFR-SEC-05 | helmet security headers; CORS allows only `CLIENT_URL` with `credentials: true`; JSON body limit 100 kb. |
-| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Counters in PostgreSQL, shared by all instances. |
+| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Counters in PostgreSQL, shared by all instances, except the usage limit, which is counted in memory per instance (FR-USE-09). |
 | NFR-SEC-07 | Secrets only in environment variables. `.env.example` committed; `.env` never. Separate Stripe keys and webhook secrets for development and production. |
 | NFR-SEC-08 | Logs never contain passwords, tokens, API keys or full webhook payloads. |
 | NFR-SEC-09 | No account can act until its email address is verified (FR-AUTH-12). Endpoints that send links answer identically for every address, so they can't be used to discover which emails have accounts. |
@@ -2476,7 +2484,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 - [x] API keys (create once-shown, list, revoke) and `apiKeyAuth` middleware
 - [x] `POST /usage` with idempotency and atomic limits (section 16.4)
-- [ ] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
+- [x] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
 - [ ] Usage summary and daily endpoints; dashboard and usage pages with charts
 - [ ] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn endpoints and admin pages
 - [ ] Seed 12 months of history

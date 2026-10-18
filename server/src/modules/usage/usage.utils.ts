@@ -20,6 +20,8 @@ export type TUsageContext = {
   includedUnits: number;
   // null = overage allowed (paid plan with full access): no hard limit
   limit: number | null;
+  // Paid plan with full access: the event is reported to Stripe's meter (report-usage job)
+  billable: boolean;
 };
 
 /**
@@ -48,6 +50,7 @@ export async function getUsageContext(
       periodStart: subscription.currentPeriodStart,
       includedUnits: plan.includedUnits,
       limit: plan.overageUnitMicros > 0 ? null : plan.includedUnits,
+      billable: true,
     };
   }
 
@@ -56,5 +59,6 @@ export async function getUsageContext(
     periodStart: currentFreePeriod(now).start,
     includedUnits: free.includedUnits,
     limit: free.includedUnits,
+    billable: false,
   };
 }

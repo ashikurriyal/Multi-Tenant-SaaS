@@ -76,6 +76,8 @@ const recordUsage = async (apiKey: TApiKey, input: TUsageInput): Promise<TUsageR
           quantity: input.quantity,
           idempotencyKey: input.idempotencyKey,
           occurredAt: input.occurredAt ?? new Date(),
+          periodStart: ctx.periodStart,
+          billable: ctx.billable,
         },
         select: { id: true },
       });

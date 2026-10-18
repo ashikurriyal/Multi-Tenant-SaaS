@@ -6,6 +6,10 @@ model UsageEvent {
   quantity           Int
   idempotencyKey     String
   occurredAt         DateTime
+  // The usage_counters period this event was added to (Stripe period or Free calendar month)
+  periodStart        DateTime
+  // Recorded while the organization had a paid subscription: reported to Stripe's meter
+  billable           Boolean   @default(false)
   reportedToStripeAt DateTime?
   createdAt          DateTime  @default(now())
 
@@ -14,6 +18,8 @@ model UsageEvent {
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, metric, occurredAt])
-  @@index([reportedToStripeAt])
+  @@index([organizationId, periodStart])
+  @@index([occurredAt])
+  @@index([billable, reportedToStripeAt])
   @@map("usage_events")
 }
