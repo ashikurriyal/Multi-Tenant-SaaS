@@ -2,6 +2,7 @@
 
 import { notFound } from "next/navigation";
 import PageSkeleton from "./PageSkeleton";
+import SessionLoadError from "./SessionLoadError";
 import { useSessionGate } from "./useSessionGate";
 
 /**
@@ -9,7 +10,8 @@ import { useSessionGate } from "./useSessionGate";
  * super admins get 404, so the admin area isn't advertised. The API enforces it as well.
  */
 export default function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
-  const { ready, me } = useSessionGate();
+  const { ready, me, loadFailed, retry } = useSessionGate();
+  if (loadFailed) return <SessionLoadError onRetry={retry} />;
   if (!ready) return <PageSkeleton />;
   if (me?.platformRole !== "SUPER_ADMIN") notFound();
   return <>{children}</>;

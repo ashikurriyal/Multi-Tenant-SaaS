@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { setActiveOrg } from "@/redux/features/orgSlice";
 import { useAppDispatch } from "@/redux/hooks";
 import PageSkeleton from "./PageSkeleton";
+import SessionLoadError from "./SessionLoadError";
 import { useSessionGate } from "./useSessionGate";
 
 /**
@@ -15,13 +16,14 @@ import { useSessionGate } from "./useSessionGate";
 export default function RequireOrgMember({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const { ready, me } = useSessionGate();
+  const { ready, me, loadFailed, retry } = useSessionGate();
   const membership = me?.memberships.find((m) => m.organization.slug === orgSlug);
 
   useEffect(() => {
     if (membership) dispatch(setActiveOrg(membership.organization.id));
   }, [membership, dispatch]);
 
+  if (loadFailed) return <SessionLoadError onRetry={retry} />;
   if (!ready) return <PageSkeleton />;
   if (!membership) notFound();
 

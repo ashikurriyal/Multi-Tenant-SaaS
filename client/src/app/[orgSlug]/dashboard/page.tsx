@@ -6,17 +6,38 @@ import ErrorState from "@/components/states/ErrorState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import UsageChart from "@/components/usage/UsageChart";
+import LazyUsageChart from "@/components/usage/LazyUsageChart";
 import UsageOverview from "@/components/usage/UsageOverview";
 import { useActiveOrg } from "@/hooks/useActiveOrg";
+import { useSettledOnce } from "@/hooks/useSettledOnce";
 import { formatUnits } from "@/lib/format";
-import { useGetDailyUsageQuery } from "@/redux/api/usageApi";
+import { useGetDailyUsageQuery, useGetUsageSummaryQuery } from "@/redux/api/usageApi";
 
 // FR-AN-01: usage vs quota, 30-day chart, plan, renewal date and projected overage
 export default function DashboardPage() {
   const { org } = useActiveOrg();
   // No range: the API returns the last 30 days
   const daily = useGetDailyUsageQuery({ orgId: org?.id ?? "" }, { skip: !org });
+  // Same cached request UsageOverview makes. Waiting for both before rendering means the
+  // usage banner, cards and chart appear together instead of pushing each other down (CLS)
+  const summary = useGetUsageSummaryQuery(org?.id ?? "", { skip: !org });
+  const settled = (q: { isSuccess: boolean; isError: boolean }) => q.isSuccess || q.isError;
+  // Stays true while a failed request is retried, so it can't loop (see useSettledOnce)
+  const ready = useSettledOnce(org?.id, settled(daily) && settled(summary));
+
+  if (!ready) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-8" aria-busy="true">
+        <PageHeader title="Dashboard" description={org?.name} />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-36" />
+          ))}
+        </div>
+        <Skeleton className="h-80 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -45,7 +66,7 @@ export default function DashboardPage() {
             daily.data.totalUnits === 0 ? (
               <NoUsageYet slug={org?.slug} />
             ) : (
-              <UsageChart days={daily.data.days} />
+              <LazyUsageChart days={daily.data.days} />
             )
           ) : (
             <Skeleton className="h-64 w-full" />

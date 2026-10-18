@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import UsageChart from "@/components/usage/UsageChart";
+import LazyUsageChart from "@/components/usage/LazyUsageChart";
 import UsageRangeControls, { PRESETS } from "@/components/usage/UsageRangeControls";
 import { useActiveOrg } from "@/hooks/useActiveOrg";
 import { formatDay, formatUnits } from "@/lib/format";
@@ -119,7 +119,7 @@ export default function UsagePage() {
                   description="Try a longer range, or check that your app is reporting usage."
                 />
               ) : (
-                <UsageChart days={data.days} className="h-72" />
+                <LazyUsageChart days={data.days} className="h-72" />
               )}
             </CardContent>
           </Card>

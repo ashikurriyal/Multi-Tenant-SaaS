@@ -21,7 +21,12 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { useActiveOrg } from "@/hooks/useActiveOrg";
 import { orgHomePath } from "@/lib/redirects";
-import CreateOrganizationForm from "./CreateOrganizationForm";
+import dynamic from "next/dynamic";
+
+// Opened from a dialog only: its form libraries (zod, react-hook-form) load on demand
+const CreateOrganizationForm = dynamic(() => import("./CreateOrganizationForm"), {
+  ssr: false,
+});
 
 const initials = (name: string) =>
   name

@@ -207,6 +207,7 @@ const refreshToken = async (token: string | undefined) => {
   return {
     accessToken: signAccessToken(authUser),
     refresh: { token: rotated.token, expiresAt: rotated.expiresAt },
+    userId: authUser.id,
   };
 };
 

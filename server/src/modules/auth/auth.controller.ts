@@ -5,6 +5,7 @@ import { runInBackground } from '../../lib/background';
 import catchAsync from '../../utils/catchAsync';
 import sendResponse from '../../utils/sendResponse';
 import { REFRESH_COOKIE, refreshCookieOptions } from '../../utils/tokens';
+import { UserService } from '../user/user.service';
 import { AuthService } from './auth.service';
 
 // Same body for every outcome, so these endpoints never reveal whether an account exists
@@ -86,14 +87,26 @@ const resetPassword = catchAsync(async (req, res) => {
 });
 
 const refreshToken = catchAsync(async (req, res) => {
+  // No cookie at all = a visitor without a session, the normal case on public pages: answer
+  // "nothing to refresh" without an error (a 401 would show as a console error in browsers).
+  // A cookie that is invalid, expired or reused still gets 401 below.
+  if (!req.cookies[REFRESH_COOKIE]) {
+    res.status(httpStatus.NO_CONTENT).end();
+    return;
+  }
   try {
-    const { accessToken, refresh } = await AuthService.refreshToken(req.cookies[REFRESH_COOKIE]);
+    const { accessToken, refresh, userId } = await AuthService.refreshToken(
+      req.cookies[REFRESH_COOKIE],
+    );
     setRefreshCookie(res, refresh);
 
+    // ?include=me: the page-load refresh also gets the account (same as GET /users/me),
+    // saving the browser a second request that would have to wait for this one
+    const me = req.query.include === 'me' ? await UserService.getMe(userId) : undefined;
     sendResponse(res, {
       statusCode: httpStatus.OK,
       message: 'Token refreshed',
-      data: { accessToken },
+      data: { accessToken, ...(me && { me }) },
     });
   } catch (err) {
     // A dead session should not leave a stale cookie behind
