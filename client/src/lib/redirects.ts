@@ -10,10 +10,16 @@ export function safeNextPath(next: string | null | undefined): string | null {
 
 export const orgHomePath = (slug: string) => `/${slug}/dashboard`;
 
-// Where a logged-in user lands when there is no ?next=
-export function homePathFor(me: Pick<Me, "memberships">): string {
+export const ADMIN_HOME = "/admin";
+
+// Where a logged-in user lands when there is no ?next=. A super admin without an
+// organization (e.g. the seeded one) goes to the platform admin instead of onboarding.
+export function homePathFor(
+  me: Pick<Me, "memberships"> & Partial<Pick<Me, "platformRole">>,
+): string {
   const first = me.memberships[0];
-  return first ? orgHomePath(first.organization.slug) : "/onboarding";
+  if (first) return orgHomePath(first.organization.slug);
+  return me.platformRole === "SUPER_ADMIN" ? ADMIN_HOME : "/onboarding";
 }
 
 export const loginPathWithNext = (pathname: string) =>

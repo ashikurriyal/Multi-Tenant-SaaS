@@ -33,3 +33,18 @@ export const formatDateTime = (iso: string) =>
   new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
     new Date(iso),
   );
+
+// "2026-09" → "Sep 2026" (or "Sep" when short)
+export const formatMonth = (month: string, short = false) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    ...(!short && { year: "numeric" }),
+    timeZone: "UTC",
+  }).format(new Date(`${month}-01T00:00:00Z`));
+
+export const formatPercent = (value: number | null | undefined) =>
+  value === null || value === undefined ? "—" : `${value.toFixed(value % 1 === 0 ? 0 : 1)}%`;
+
+// +$1,200 / −$300 for movements
+export const formatSignedMoney = (cents: number) =>
+  `${cents > 0 ? "+" : cents < 0 ? "−" : ""}${formatMoney(Math.abs(cents))}`;

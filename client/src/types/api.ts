@@ -181,3 +181,59 @@ export type CreatedApiKey = {
   createdAt: string;
   key: string;
 };
+
+// ---- Super admin (endpoints #34–#37) ----
+
+export type MrrMonth = {
+  month: string; // YYYY-MM
+  asOf: string | null; // snapshot day used as the month's end; null = no data yet
+  mrrCents: number;
+  payingCustomers: number;
+  newCents: number;
+  expansionCents: number;
+  contractionCents: number;
+  churnedCents: number;
+  reactivationCents: number;
+  netNewCents: number;
+};
+
+export type ChurnMonth = {
+  month: string;
+  asOf: string | null;
+  startCustomers: number;
+  endCustomers: number;
+  churnedCustomers: number;
+  customerChurnPercent: number | null;
+  startMrrCents: number;
+  mrrCents: number;
+  nrrPercent: number | null;
+  arpaCents: number | null;
+};
+
+export type AdminTenant = {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: string;
+  planCode: string;
+  planName: string;
+  status: SubscriptionStatus;
+  accessLevel: "FULL" | "FREE";
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+  memberCount: number;
+  mrrCents: number;
+};
+
+export type WebhookEventStatus = "RECEIVED" | "PROCESSING" | "PROCESSED" | "FAILED";
+
+export type AdminWebhookEvent = {
+  id: string; // evt_…
+  type: string;
+  status: WebhookEventStatus;
+  attempts: number;
+  lastError: string | null;
+  nextAttemptAt: string | null;
+  receivedAt: string;
+  processedAt: string | null;
+};
