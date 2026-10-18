@@ -193,4 +193,4 @@ GitHub pauses scheduled workflows in repositories with no activity for 60 days. 
 feature branch ──PR──► development ──PR "Release: …"──► main ──► Vercel deploys API + website
 ```
 
-Migrations run automatically when the API deploys (`npm run db:deploy` in `server/vercel.json`). If two API builds overlap (for example a merge to `main` and a manual **Redeploy**), the second waits for the first one's migrations and retries (up to about a minute) instead of failing with `P1002 … advisory lock`. Avoid starting a redeploy while another deployment is still building.
+Migrations run automatically when the API deploys (`npm run db:deploy` in `server/vercel.json`). `db:deploy` runs them with Prisma's migration lock turned off (`PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1`): through the Prisma Postgres connection pooler that lock leaks and makes every later deploy fail with `P1002 … Timed out trying to acquire a postgres advisory lock`. Only `main` deploys migrate, so don't start a **Redeploy** while another API deployment is still building.

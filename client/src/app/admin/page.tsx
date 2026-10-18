@@ -37,6 +37,10 @@ export default function AdminRevenuePage() {
 
   const mrr = useGetMrrMetricsQuery(months);
   const churn = useGetChurnMetricsQuery(months);
+  // currentData, not data: while a new range loads, `data` still holds the previous range,
+  // and the two requests can finish at different times (12 months of one, 24 of the other)
+  const mrrData = mrr.currentData;
+  const churnData = churn.currentData;
 
   const setMonths = (next: number) => {
     const params = new URLSearchParams(searchParams);
@@ -66,7 +70,7 @@ export default function AdminRevenuePage() {
       </div>
     );
   }
-  if (!mrr.data || !churn.data) {
+  if (!mrrData || !churnData) {
     return (
       <div className="mx-auto max-w-6xl space-y-8" aria-busy="true">
         {header}
@@ -80,7 +84,7 @@ export default function AdminRevenuePage() {
     );
   }
 
-  const hasData = mrr.data.some((m) => m.asOf !== null);
+  const hasData = mrrData.some((m) => m.asOf !== null);
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       {header}
@@ -91,7 +95,7 @@ export default function AdminRevenuePage() {
         />
       ) : (
         <>
-          <KpiCards mrr={mrr.data} churn={churn.data} />
+          <KpiCards mrr={mrrData} churn={churnData} />
           <Card>
             <CardHeader>
               <CardTitle>MRR</CardTitle>
@@ -100,7 +104,7 @@ export default function AdminRevenuePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <MrrChart months={mrr.data} />
+              <MrrChart months={mrrData} />
             </CardContent>
           </Card>
           <Card>
@@ -111,10 +115,10 @@ export default function AdminRevenuePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <MovementsChart months={mrr.data} />
+              <MovementsChart months={mrrData} />
             </CardContent>
           </Card>
-          <MetricsTable mrr={mrr.data} churn={churn.data} />
+          <MetricsTable mrr={mrrData} churn={churnData} />
         </>
       )}
     </div>
@@ -123,7 +127,7 @@ export default function AdminRevenuePage() {
 
 function KpiCards({ mrr, churn }: { mrr: MrrMonth[]; churn: ChurnMonth[] }) {
   const current = mrr.at(-1)!;
-  const currentChurn = churn.at(-1)!;
+  const currentChurn = churn.at(-1);
   // Rates over a partial month understate churn, so they use the last complete month
   const lastFull = churn.at(-2);
 
@@ -137,7 +141,7 @@ function KpiCards({ mrr, churn }: { mrr: MrrMonth[]; churn: ChurnMonth[] }) {
       label: "Paying customers",
       value: String(current.payingCustomers),
       note:
-        currentChurn.arpaCents === null ? "ARPA —" : `ARPA ${formatMoney(currentChurn.arpaCents)}`,
+        currentChurn?.arpaCents == null ? "ARPA —" : `ARPA ${formatMoney(currentChurn.arpaCents)}`,
     },
     {
       label: "Customer churn",
@@ -168,9 +172,10 @@ function KpiCards({ mrr, churn }: { mrr: MrrMonth[]; churn: ChurnMonth[] }) {
   );
 }
 
-// Newest month first; both endpoints return the same months in the same order
+// Newest month first; churn figures are matched by month, never by position
 function MetricsTable({ mrr, churn }: { mrr: MrrMonth[]; churn: ChurnMonth[] }) {
-  const rows = mrr.map((m, i) => ({ m, c: churn[i]! })).reverse();
+  const churnByMonth = new Map(churn.map((c) => [c.month, c]));
+  const rows = mrr.map((m) => ({ m, c: churnByMonth.get(m.month) })).reverse();
   const money = (cents: number) => (cents === 0 ? "—" : formatMoney(cents));
 
   return (
@@ -208,11 +213,11 @@ function MetricsTable({ mrr, churn }: { mrr: MrrMonth[]; churn: ChurnMonth[] }) 
               <TableCell className="text-right font-medium">
                 {m.netNewCents === 0 ? "—" : formatSignedMoney(m.netNewCents)}
               </TableCell>
-              <TableCell className="text-right">{c.endCustomers}</TableCell>
-              <TableCell className="text-right">{formatPercent(c.customerChurnPercent)}</TableCell>
-              <TableCell className="text-right">{formatPercent(c.nrrPercent)}</TableCell>
+              <TableCell className="text-right">{c ? c.endCustomers : "—"}</TableCell>
+              <TableCell className="text-right">{formatPercent(c?.customerChurnPercent)}</TableCell>
+              <TableCell className="text-right">{formatPercent(c?.nrrPercent)}</TableCell>
               <TableCell className="text-right">
-                {c.arpaCents === null ? "—" : formatMoney(c.arpaCents)}
+                {c?.arpaCents == null ? "—" : formatMoney(c.arpaCents)}
               </TableCell>
             </TableRow>
           ))}
