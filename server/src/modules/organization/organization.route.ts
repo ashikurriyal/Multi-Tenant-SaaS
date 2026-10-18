@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { auth } from '../../middlewares/auth';
+import { blockDemoUser, blockInDemoOrg } from '../../middlewares/demoGuard';
 import requireOrgMember from '../../middlewares/requireOrgMember';
 import requirePermission from '../../middlewares/requirePermission';
 import validateRequest from '../../middlewares/validateRequest';
@@ -17,6 +18,7 @@ const router = Router();
 router.post(
   '/',
   auth,
+  blockDemoUser,
   validateRequest(OrganizationValidation.create),
   OrganizationController.createOrganization,
 );
@@ -27,6 +29,7 @@ router.patch(
   auth,
   requireOrgMember,
   requirePermission('org:update'),
+  blockInDemoOrg,
   validateRequest(OrganizationValidation.update),
   OrganizationController.updateOrganization,
 );

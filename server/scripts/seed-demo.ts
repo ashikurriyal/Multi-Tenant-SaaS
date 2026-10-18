@@ -24,6 +24,7 @@ import bcrypt from 'bcrypt';
 import type { OrgRole, Plan, Prisma, SubscriptionStatus } from '../generated/prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { currentFreePeriod } from '../src/modules/organization/organization.utils';
+import { DEMO_TENANT_SLUGS } from '../src/modules/demo/demo.config';
 import { mrrCentsOf } from '../src/shared/metrics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -224,7 +225,10 @@ async function removeSampleData(tx: Prisma.TransactionClient) {
   // Sample users belong only to sample organizations; organizations cascade to their
   // members, subscriptions, snapshots and usage
   const users = await tx.user.deleteMany({ where: { email: { endsWith: `@${EMAIL_DOMAIN}` } } });
-  const orgs = await tx.organization.deleteMany({ where: { isDemo: true } });
+  const orgs = await tx.organization.deleteMany({
+    // The login demo organizations (npm run demo:reset) are left alone
+    where: { isDemo: true, slug: { notIn: DEMO_TENANT_SLUGS } },
+  });
   return { organizations: orgs.count, users: users.count };
 }
 

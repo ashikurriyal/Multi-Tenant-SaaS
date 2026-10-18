@@ -63,6 +63,20 @@ DATABASE_URL="<ledgerflow-prod connection string>" npm run seed:demo -- --yes   
 
 It prints the target database first, and refuses anything but localhost without `--yes`. The sample organizations are marked **Sample** in the admin table, their users can't log in or receive email, and nothing is created in Stripe. Running it again replaces the sample data (dates move to today); `npm run seed:demo -- --remove --yes` deletes it. Real organizations are never touched. It costs a few dozen database operations per run.
 
+## Demo accounts (optional)
+
+The login page can offer one-click demo accounts (Acme on Pro, a Billing user, Globex past due, Initech on Free near its limit). Acme and Globex are real Stripe **test-mode** subscriptions, so `stripe:setup` must have run for that database.
+
+1. Create them once, from your Mac (about 30 seconds):
+   ```bash
+   cd server
+   DATABASE_URL="<ledgerflow-prod connection string>" npm run demo:reset -- --yes
+   ```
+2. API project on Vercel → **Settings → Environment Variables** → `DEMO_ENABLED` = `true` → redeploy. The buttons appear on the login page.
+3. The daily scheduled run (`reset-demo`) rebuilds them every night, so whatever visitors change is gone the next day.
+
+To turn the demo off, set `DEMO_ENABLED=false` (or remove it) and redeploy: the buttons disappear and the demo login answers 404.
+
 ## Production email (Gmail)
 
 New accounts can't log in until they click the link in their verification email, so production email **must** deliver to real inboxes. The free option without owning a domain is Gmail:
@@ -150,7 +164,7 @@ GitHub repository → **Settings → Secrets and variables → Actions**:
 - **Variables** tab → New variable: `API_BASE_URL` = `https://<your-api>.vercel.app`
 - **Secrets** tab → New secret: `CRON_SECRET` = secret #3 (the same value as in step 2)
 
-Then **Actions → Scheduled jobs → Run workflow**. The run should be green. Every 10 minutes it runs `send-emails`, `retry-webhooks`, `report-usage` and `usage-rollup`; once a day (03:15 UTC) `reconcile-stripe`, `cleanup`, `roll-free-periods`, `verify-usage-counters` and `mrr-snapshot`.
+Then **Actions → Scheduled jobs → Run workflow**. The run should be green. Every 10 minutes it runs `send-emails`, `retry-webhooks`, `report-usage` and `usage-rollup`; once a day (03:15 UTC) `reconcile-stripe`, `cleanup`, `roll-free-periods`, `verify-usage-counters`, `mrr-snapshot` and `reset-demo`.
 
 ## 6. Check the live site
 
