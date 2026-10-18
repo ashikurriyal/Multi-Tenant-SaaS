@@ -2596,7 +2596,8 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Audit log page
 - [x] Empty/loading/error states everywhere (review): 404, error and global-error pages, session-load retry, latched gates
 - [x] Demo accounts: one-click buttons on the login page, demo banner, restricted actions turned off in the UI
-- [ ] README, ERD in `docs/`, ADRs, 2-minute Loom walkthrough
+- [x] README (pitch, live demo, demo accounts, screenshots, architecture, engineering highlights, setup), ERD in `docs/`, ADRs 001–007 in `docs/adr/`
+- [ ] 2-minute Loom walkthrough (recorded by the author)
 - [ ] Full run of the manual verification checklist on production
 
 **Done when:** every item in section 19 passes on the live site, and a recruiter can try the demo in under 60 seconds.
@@ -2790,7 +2791,7 @@ A reviewer spends about 90 seconds on your repository. Show the product, the arc
 | ADR-006 | RTK Query for server data; Redux slices only for auth and UI state |
 | ADR-007 | Next.js rewrite for same-origin cookies |
 
-Template for each: **Context · Decision · Alternatives considered · Consequences.**
+Template for each: **Context · Decision · Alternatives considered · Consequences.** Written in [`docs/adr/`](adr/README.md).
 
 ---
 
