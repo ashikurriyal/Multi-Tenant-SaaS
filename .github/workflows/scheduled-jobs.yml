@@ -13,7 +13,7 @@ on:
   schedule:
     # GitHub may start scheduled runs a few minutes late; every job is safe to run twice
     - cron: '*/10 * * * *'
-    - cron: '15 3 * * *' # daily: reconcile-stripe, cleanup, roll-free-periods, verify-usage-counters
+    - cron: '15 3 * * *' # daily: reconcile-stripe, cleanup, roll-free-periods, verify-usage-counters, mrr-snapshot
   workflow_dispatch:
 
 concurrency:
@@ -69,7 +69,7 @@ jobs:
             "$API_BASE_URL/api/v1/internal/jobs/usage-rollup"
 
   daily:
-    name: reconcile, cleanup, usage checks
+    name: reconcile, cleanup, usage checks, MRR
     # Daily schedule, or a manual run
     if: >-
       ${{ vars.API_BASE_URL != '' &&
@@ -117,3 +117,14 @@ jobs:
           curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
             -X POST -H "Authorization: Bearer $CRON_SECRET" \
             "$API_BASE_URL/api/v1/internal/jobs/verify-usage-counters"
+
+      - name: Run mrr-snapshot
+        # Today's MRR per organization, for the admin revenue charts (FR-AN-02)
+        if: ${{ always() }}
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 --retry 2 --retry-delay 15 \
+            -X POST -H "Authorization: Bearer $CRON_SECRET" \
+            "$API_BASE_URL/api/v1/internal/jobs/mrr-snapshot"

@@ -557,8 +557,8 @@ Only an Owner may grant or remove the Owner role.
 | FR-USE-04 | For plans without overage (Free, or any organization whose access level is `FREE`), the system must reject usage that would exceed `includedUnits` for the current period with `429 PLAN_LIMIT_USAGE`. This check must be **atomic**: concurrent requests can never push usage over the limit (section 16.4). |
 | FR-USE-05 | For paid plans, usage beyond `includedUnits` is accepted and billed as overage. |
 | FR-USE-06 | For a paid plan with full access, the usage period is the subscription's `currentPeriodStart` → `currentPeriodEnd`. For Free (and any organization whose access level is `FREE`), it is the current calendar month in UTC, computed at request time so the limit resets on the 1st even before `roll-free-periods` runs. |
-| FR-USE-07 | `GET /orgs/:orgId/usage/summary` must return units used this period, included units, percentage used, projected end-of-period units (current daily average × days in period), and projected overage cost. |
-| FR-USE-08 | `GET /orgs/:orgId/usage/daily?from&to` must return a daily series from `usage_daily_rollups` (maximum 90 days per request). |
+| FR-USE-07 | `GET /orgs/:orgId/usage/summary` must return units used this period, included units, percentage used, projected end-of-period units (current daily average × days in period; at least one day counts as elapsed, so an early burst doesn't project absurd numbers), and projected overage cost. |
+| FR-USE-08 | `GET /orgs/:orgId/usage/daily?from&to&metric` must return a zero-filled daily series from `usage_daily_rollups` (maximum 90 days per request; default the last 30 days). Rollups are refreshed by `usage-rollup`, so today's value can lag by one run. |
 | FR-USE-09 | The usage endpoint must be rate-limited to 100 requests per second per API key (`429 RATE_LIMITED`). The count is kept in memory per server instance, not in PostgreSQL, so the busiest endpoint doesn't pay an extra database write per request; with several instances the ceiling is a multiple of 100/s. The plan limit itself is enforced exactly by the atomic counter. |
 | FR-USE-10 | `lastUsedAt` on the API key should be updated at most once per minute per key. |
 
@@ -706,7 +706,7 @@ Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 
 | 40 | POST | `/auth/resend-verification` | Public | Send a new verification link (same answer for every email) |
 | 41 | POST | `/auth/forgot-password` | Public | Send a password-reset link (same answer for every email) |
 | 42 | POST | `/auth/reset-password` | Public (token) | Set a new password; revoke all sessions |
-| 43 | GET, POST | `/internal/jobs/:name` | `Bearer CRON_SECRET` | Run a scheduled job (`send-emails`, `cleanup`); 404 when no secret is configured |
+| 43 | GET, POST | `/internal/jobs/:name` | `Bearer CRON_SECRET` | Run a scheduled job (any name in section 13); 404 when no secret is configured |
 
 ### 10.4 Endpoint details (main flows)
 
@@ -937,16 +937,42 @@ Content-Type: application/json
 {
   "success": true, "statusCode": 200, "message": "Usage summary retrieved",
   "data": {
+    "planCode": "PRO",
     "periodStart": "2026-10-01T00:00:00.000Z",
     "periodEnd": "2026-11-01T00:00:00.000Z",
     "unitsUsed": 41250,
     "includedUnits": 50000,
     "percentUsed": 82.5,
+    "overageAllowed": true,
+    "limitReached": false,
+    "overageCents": 0,
     "projectedUnits": 61500,
     "projectedOverageCents": 2300
   }
 }
 ```
+
+The period and limits come from the same rules as ingestion (FR-USE-06): the Stripe period on a paid plan with full access, otherwise the calendar month with the Free limit. `limitReached` is only ever `true` when overage isn't allowed (new usage gets `429`). Overage costs `overageUnitMicros` per unit (10,000 micros = 1 cent).
+
+#### 31. Daily usage — `GET /api/v1/orgs/:orgId/usage/daily?from=2026-10-01&to=2026-10-03&metric=docs`
+
+```json
+{
+  "success": true, "statusCode": 200, "message": "Daily usage retrieved",
+  "data": {
+    "from": "2026-10-01", "to": "2026-10-03", "metric": "docs",
+    "metrics": ["docs", "pages"],
+    "totalUnits": 30,
+    "days": [
+      { "day": "2026-10-01", "units": 10 },
+      { "day": "2026-10-02", "units": 0 },
+      { "day": "2026-10-03", "units": 20 }
+    ]
+  }
+}
+```
+
+Days are UTC; both ends are included. All parameters are optional: `to` defaults to today, `from` to 29 days before `to`, and without `metric` every metric is summed. `metrics` lists every metric seen in the range, for a filter. More than 90 days, or `from` after `to` → `400 VALIDATION_ERROR`.
 
 #### 34. Admin MRR — `GET /api/v1/admin/metrics/mrr?months=12`
 
@@ -954,11 +980,32 @@ Content-Type: application/json
 {
   "success": true, "statusCode": 200, "message": "MRR metrics retrieved",
   "data": [
-    { "month": "2026-09", "mrrCents": 1245000, "newCents": 98000, "expansionCents": 45000,
-      "contractionCents": 12000, "churnedCents": 39000, "reactivationCents": 0, "netNewCents": 92000 }
+    { "month": "2026-09", "asOf": "2026-09-30", "mrrCents": 1245000, "payingCustomers": 61,
+      "newCents": 98000, "expansionCents": 45000, "contractionCents": 12000, "churnedCents": 39000,
+      "reactivationCents": 0, "netNewCents": 92000 }
   ]
 }
 ```
+
+`months` is 1–36 (default 12), oldest first, ending with the current month. Each month compares the last snapshot day of the previous month with the last snapshot day of this one (`asOf`; for the current month, the latest snapshot). A month without snapshots carries the previous state forward, so a missed job never looks like mass churn; months before the first snapshot are zero with `asOf: null`.
+
+#### 35. Admin churn — `GET /api/v1/admin/metrics/churn?months=12`
+
+```json
+{ "month": "2026-09", "asOf": "2026-09-30", "startCustomers": 100, "endCustomers": 102,
+  "churnedCustomers": 4, "customerChurnPercent": 4, "startMrrCents": 1000000, "mrrCents": 1070000,
+  "nrrPercent": 103, "arpaCents": 10490 }
+```
+
+Percentages have two decimals. `customerChurnPercent` and `nrrPercent` are `null` without paying customers at the start; `arpaCents` is `null` without paying customers at the end.
+
+#### 36. Admin tenants — `GET /api/v1/admin/tenants?search=acme&plan=PRO&status=ACTIVE&page=1&limit=10`
+
+Each row: `id`, `name`, `slug`, `createdAt`, `planCode`, `planName`, `status`, `accessLevel`, `cancelAtPeriodEnd`, `currentPeriodEnd`, `memberCount`, `mrrCents` (current, same rule as the snapshots). `search` matches the name (case-insensitive) or slug. Newest first, paginated (`meta`).
+
+#### 37. Admin webhook events — `GET /api/v1/admin/webhook-events?status=FAILED&page=1&limit=10`
+
+Each row: `id`, `type`, `status`, `attempts`, `lastError`, `nextAttemptAt`, `receivedAt`, `processedAt`. `status` defaults to `FAILED`. Payloads are never returned (NFR-SEC-08). Newest first, paginated.
 
 ---
 
@@ -1738,7 +1785,7 @@ One function, `getEntitlements(organizationId)`, decides what an organization ma
 
 ### 12.4 Revenue metrics
 
-MRR counts only recurring plan fees for organizations with `accessLevel = FULL` on a paid plan. Overage is reported separately as usage revenue.
+MRR counts only recurring plan fees for organizations with `accessLevel = FULL` on a paid plan, **excluding trials** (`TRIALING`): a trial counts once it converts and pays. A past-due organization still inside its grace period counts. Overage is reported separately as usage revenue. The rules are in `server/src/shared/metrics.ts` (`mrrCentsOf`, `mrrMovements`, …), used by the snapshot job and the admin endpoints.
 
 For each organization, compare MRR on the last day of month M−1 with the last day of month M:
 
@@ -1764,7 +1811,7 @@ ARPA                = MRR ÷ number of paying organizations
 - NRR = (10,000 + 800 − 200 − 300) ÷ 10,000 = **103%**
 - ARPA = 10,700 ÷ 102 = **$104.90**
 
-Put this example in a script (`npm run check:metrics`) that runs the functions in `shared/metrics.ts` and prints whether the numbers match.
+`npm run check:metrics` (in `server/`) runs this example through `shared/metrics.ts` and prints each number with PASS/FAIL.
 
 ---
 
@@ -1779,7 +1826,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | `report-usage` | Every 5 minutes (every 10 min in production) | Send `billable` events without `reportedToStripeAt` (up to 500 per run, 10 at a time) to the Stripe Billing Meter: every unit, since the graduated price makes the included units free. Identifier `lf-<organizationId>-<eventId>` (unique across the development and production databases, which share one Stripe test account); Stripe refuses a repeated identifier with a 400 "already exists", which counts as reported, so a re-run never bills twice. Timestamp = the later of `occurredAt` and the event's `periodStart`, so Stripe puts it in the same period as the counter. Rows are marked per group of 10; failures stay unreported and are retried next run. Events older than 33 days are skipped (Stripe accepts 35). Stripe accepts usage for a period until about an hour after it ends, which the 10-minute schedule meets |
 | `usage-rollup` | Every hour at :05 (every 10 min in production) | Recompute the last three UTC days of `usage_daily_rollups` (per organization, metric and day of `occurredAt`) from `usage_events` in one `INSERT … SELECT … GROUP BY … ON CONFLICT DO UPDATE`; three days because usage may arrive 24 h late and a run may be late |
 | `roll-free-periods` | Daily 00:01 (03:15 in production) | Move Free-plan subscriptions whose `currentPeriodEnd` has passed to the current calendar month (UTC). Only for display: the usage limit already follows the calendar month (FR-USE-06) |
-| `mrr-snapshot` | Daily 00:15 | Write today's `mrr_snapshots` row for every organization |
+| `mrr-snapshot` | Daily 00:15 (03:15 in production) | Write today's (UTC) `mrr_snapshots` row for every organization, zero included, in one `INSERT … SELECT FROM unnest(…) ON CONFLICT DO UPDATE`; a second run the same day overwrites with current values |
 | `reconcile-stripe` | Daily 01:00 (03:15 with `cleanup` in production) | For every organization with a Stripe customer, re-sync its subscription from Stripe (also finding subscriptions whose webhooks never arrived) and audit each corrected field as `reconciliation.corrected` (FR-WH-09) |
 | `verify-usage-counters` | Daily 01:30 (03:15 in production) | For counters of periods that started in the last 40 days, compare `units` with `SUM(quantity)` of the events with the same `periodStart`. A drift is repaired after locking the counter row (`FOR UPDATE`, so every ingest that touched it has committed and the sum is exact), audited as `usage.counter_corrected` and logged |
 | `cleanup` | Daily 03:15 | Delete accounts unverified for 7 days (and organizations only they belong to), email tokens used or expired for more than a day, and ended `rate_limits` windows |
@@ -2485,8 +2532,10 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] API keys (create once-shown, list, revoke) and `apiKeyAuth` middleware
 - [x] `POST /usage` with idempotency and atomic limits (section 16.4)
 - [x] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
-- [ ] Usage summary and daily endpoints; dashboard and usage pages with charts
-- [ ] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn endpoints and admin pages
+- [x] Usage summary and daily endpoints
+- [ ] Dashboard and usage pages with charts
+- [x] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn/tenants/webhook-events endpoints
+- [ ] Admin pages
 - [ ] Seed 12 months of history
 
 **Done when:** the admin dashboard shows a believable year of MRR, and the concurrency script (19.4) never exceeds the Free limit.

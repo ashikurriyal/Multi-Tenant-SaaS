@@ -1,4 +1,5 @@
 import { cleanup } from './cleanup';
+import { mrrSnapshot } from './mrrSnapshot';
 import { reconcileStripe } from './reconcileStripe';
 import { reportUsage } from './reportUsage';
 import { retryWebhooks } from './retryWebhooks';
@@ -25,6 +26,7 @@ export const jobs: Job[] = [
   { name: 'report-usage', schedule: '*/5 * * * *', run: reportUsage },
   { name: 'usage-rollup', schedule: '5 * * * *', run: usageRollup }, // hourly at :05
   { name: 'roll-free-periods', schedule: '1 0 * * *', run: rollFreePeriods }, // daily 00:01 UTC
+  { name: 'mrr-snapshot', schedule: '15 0 * * *', run: mrrSnapshot }, // daily 00:15 UTC
   { name: 'reconcile-stripe', schedule: '0 1 * * *', run: reconcileStripe }, // daily 01:00 UTC
   { name: 'verify-usage-counters', schedule: '30 1 * * *', run: verifyUsageCounters }, // 01:30
   { name: 'cleanup', schedule: '15 3 * * *', run: cleanup }, // daily 03:15 UTC

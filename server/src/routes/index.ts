@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { JobRoutes } from '../jobs/jobs.route';
+import { AdminRoutes } from '../modules/admin/admin.route';
 import { AuthRoutes } from '../modules/auth/auth.route';
 import { InvitationRoutes } from '../modules/invitation/invitation.route';
 import { OrganizationRoutes } from '../modules/organization/organization.route';
@@ -17,6 +18,7 @@ const moduleRoutes: { path: string; route: Router }[] = [
   { path: '/invitations', route: InvitationRoutes },
   { path: '/plans', route: PlanRoutes },
   { path: '/usage', route: UsageRoutes },
+  { path: '/admin', route: AdminRoutes },
   { path: '/internal/jobs', route: JobRoutes },
 ];
 

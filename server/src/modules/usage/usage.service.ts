@@ -1,8 +1,20 @@
 import { Prisma } from '../../../generated/prisma/client';
 import AppError from '../../errors/AppError';
 import { prisma } from '../../lib/prisma';
-import { getUsageContext } from './usage.utils';
-import type { TUsageInput } from './usage.validation';
+import { tenantPrisma, type TenantPrisma } from '../../lib/tenantPrisma';
+import {
+  addDays,
+  fromDay,
+  getUsageContext,
+  overageCents,
+  projectUnits,
+  toDay,
+  todayUtc,
+} from './usage.utils';
+import type { TDailyQuery, TUsageInput } from './usage.validation';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_DAYS = 90; // FR-USE-08
 
 type TApiKey = { id: string; organizationId: string };
 
@@ -34,7 +46,7 @@ const limitReached = (limit: number) =>
  */
 const recordUsage = async (apiKey: TApiKey, input: TUsageInput): Promise<TUsageResult> => {
   const { organizationId } = apiKey;
-  const ctx = await getUsageContext(organizationId);
+  const ctx = await getUsageContext(tenantPrisma(organizationId));
   const periodUnits = async () =>
     (
       await prisma.usageCounter.findUnique({
@@ -108,4 +120,76 @@ const recordUsage = async (apiKey: TApiKey, input: TUsageInput): Promise<TUsageR
   }
 };
 
-export const UsageService = { recordUsage };
+/** FR-USE-07, endpoint #30: where the organization stands in its current period */
+const getSummary = async (db: TenantPrisma, now = new Date()) => {
+  const ctx = await getUsageContext(db, now);
+  const counter = await db.usageCounter.findFirst({
+    where: { periodStart: ctx.periodStart },
+    select: { units: true },
+  });
+  const unitsUsed = counter?.units ?? 0;
+  const projectedUnits = projectUnits(unitsUsed, ctx.periodStart, ctx.periodEnd, now);
+
+  return {
+    planCode: ctx.planCode,
+    periodStart: ctx.periodStart,
+    periodEnd: ctx.periodEnd,
+    unitsUsed,
+    includedUnits: ctx.includedUnits,
+    percentUsed:
+      ctx.includedUnits > 0 ? Math.round((unitsUsed / ctx.includedUnits) * 1000) / 10 : 0,
+    // Free: usage stops at the limit (429). Paid: it continues and is billed as overage.
+    overageAllowed: ctx.limit === null,
+    limitReached: ctx.limit !== null && unitsUsed >= ctx.limit,
+    overageCents: overageCents(unitsUsed, ctx.includedUnits, ctx.overageUnitMicros),
+    projectedUnits,
+    projectedOverageCents: overageCents(projectedUnits, ctx.includedUnits, ctx.overageUnitMicros),
+  };
+};
+
+/**
+ * FR-USE-08, endpoint #31: one row per day (zero-filled), read from usage_daily_rollups,
+ * never from raw events. Rollups are refreshed by the usage-rollup job, so today's number
+ * can lag by up to one run.
+ */
+const getDaily = async (db: TenantPrisma, query: TDailyQuery, now = new Date()) => {
+  // Both ends included. Defaults: `to` = today (UTC), `from` = 29 days before `to`.
+  const to = query.to ? fromDay(query.to) : todayUtc(now);
+  const start = query.from ? fromDay(query.from) : addDays(to, -29);
+  if (start > to) {
+    throw new AppError(400, 'VALIDATION_ERROR', '`from` must not be after `to`');
+  }
+  if (Math.round((to.getTime() - start.getTime()) / DAY_MS) + 1 > MAX_DAYS) {
+    throw new AppError(400, 'VALIDATION_ERROR', `At most ${MAX_DAYS} days per request`);
+  }
+
+  const rows = await db.usageDailyRollup.findMany({
+    where: { day: { gte: start, lte: to } },
+    select: { day: true, metric: true, quantity: true },
+  });
+
+  const byDay = new Map<string, number>();
+  const metrics = new Set<string>();
+  for (const row of rows) {
+    metrics.add(row.metric);
+    if (query.metric && row.metric !== query.metric) continue;
+    const key = toDay(row.day);
+    byDay.set(key, (byDay.get(key) ?? 0) + row.quantity);
+  }
+
+  const days: { day: string; units: number }[] = [];
+  for (let d = start; d <= to; d = addDays(d, 1)) {
+    days.push({ day: toDay(d), units: byDay.get(toDay(d)) ?? 0 });
+  }
+  return {
+    from: toDay(start),
+    to: toDay(to),
+    metric: query.metric ?? null,
+    // Every metric seen in the range, for a filter dropdown
+    metrics: [...metrics].sort(),
+    totalUnits: days.reduce((sum, d) => sum + d.units, 0),
+    days,
+  };
+};
+
+export const UsageService = { recordUsage, getSummary, getDaily };

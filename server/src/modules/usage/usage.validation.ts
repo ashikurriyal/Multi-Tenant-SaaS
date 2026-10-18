@@ -18,6 +18,25 @@ const ingest = z.object({
   }),
 });
 
-export const UsageValidation = { ingest };
+const day = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
+  .refine((d) => !Number.isNaN(Date.parse(d)), 'Not a real date');
+
+// The range rules (from ≤ to, at most 90 days, defaults) are applied in the service
+const daily = z.object({
+  query: z.object({
+    from: day.optional(),
+    to: day.optional(),
+    metric: z
+      .string()
+      .regex(/^[a-z0-9_]{1,50}$/, 'Unknown metric')
+      .optional(),
+  }),
+});
+
+export const UsageValidation = { ingest, daily };
 
 export type TUsageInput = z.infer<typeof ingest>['body'];
+
+export type TDailyQuery = z.infer<typeof daily>['query'];
