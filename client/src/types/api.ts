@@ -137,3 +137,47 @@ export type Invoice = {
   hostedInvoiceUrl: string | null;
   createdAt: string;
 };
+
+// GET /orgs/:orgId/usage/summary (endpoint #30)
+export type UsageSummary = {
+  planCode: string;
+  periodStart: string;
+  periodEnd: string;
+  unitsUsed: number;
+  includedUnits: number;
+  percentUsed: number;
+  overageAllowed: boolean;
+  limitReached: boolean;
+  overageCents: number;
+  projectedUnits: number;
+  projectedOverageCents: number;
+};
+
+// GET /orgs/:orgId/usage/daily (endpoint #31); days are UTC, YYYY-MM-DD
+export type DailyUsage = {
+  from: string;
+  to: string;
+  metric: string | null;
+  metrics: string[];
+  totalUnits: number;
+  days: { day: string; units: number }[];
+};
+
+export type ApiKey = {
+  id: string;
+  name: string;
+  prefix: string; // e.g. lf_live_3Hq9
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  createdBy: { id: string; name: string };
+};
+
+// POST /orgs/:orgId/api-keys — the only time the full key is returned
+export type CreatedApiKey = {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  key: string;
+};
