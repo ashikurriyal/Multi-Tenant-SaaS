@@ -187,6 +187,8 @@ Then **Actions → Scheduled jobs → Run workflow**. The run should be green. E
 
 GitHub pauses scheduled workflows in repositories with no activity for 60 days. Any push turns them back on.
 
+The workflow runs from the default branch (`development`), so it can list a job that production (`main`) doesn't have yet. The API then answers "Unknown job", which shows as a **warning** on that step (`.github/scripts/run-job.sh`) rather than a failure; it goes away with the next release. Any other error (wrong `CRON_SECRET`, API down) still fails the run.
+
 ## Releasing
 
 ```text

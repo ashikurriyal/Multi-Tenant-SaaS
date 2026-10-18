@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { JobRoutes } from '../jobs/jobs.route';
+import { apiLimiter } from '../middlewares/rateLimiter';
 import { AdminRoutes } from '../modules/admin/admin.route';
 import { AuthRoutes } from '../modules/auth/auth.route';
 import { DemoRoutes } from '../modules/demo/demo.route';
@@ -24,6 +25,7 @@ const moduleRoutes: { path: string; route: Router }[] = [
   { path: '/internal/jobs', route: JobRoutes },
 ];
 
+router.use(apiLimiter);
 moduleRoutes.forEach(({ path, route }) => router.use(path, route));
 
 export default router;

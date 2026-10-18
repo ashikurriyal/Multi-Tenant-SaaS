@@ -456,7 +456,7 @@ Only an Owner may grant or remove the Owner role.
 | FR-AUTH-04 | Login must use the passport-local strategy with `email` and `password`. Wrong credentials return `401 INVALID_CREDENTIALS` with the same message for unknown email and wrong password. A `BLOCKED` user returns `403 USER_BLOCKED`. A correct password for an account whose email is not verified returns `403 EMAIL_NOT_VERIFIED` (checked after the password, so the answer never reveals that an account exists). |
 | FR-AUTH-05 | On login the system must issue an access token (JWT, `JWT_ACCESS_EXPIRES_IN`, default `15m`) containing `sub` (user id), `email` and `platformRole`, and return it in the response body. |
 | FR-AUTH-06 | On login the system must issue a refresh token (JWT, `JWT_REFRESH_EXPIRES_IN`, default `7d`) with a unique `jti` and a `familyId`, store a `refresh_tokens` row whose `id` is the `jti`, and set it as cookie `refreshToken` (`httpOnly`, `secure` in production, `sameSite: 'lax'`, `path: '/api/v1/auth'`). |
-| FR-AUTH-07 | `POST /auth/refresh-token` must verify the cookie's JWT, find its row, and if valid and not revoked: revoke it, issue a new refresh token in the same family, set the new cookie, and return a new access token (rotation). |
+| FR-AUTH-07 | `POST /auth/refresh-token` must verify the cookie's JWT, find its row, and if valid and not revoked: revoke it, issue a new refresh token in the same family, set the new cookie, and return a new access token (rotation). With `?include=me` the response also carries the account (as `GET /users/me`), which the page-load refresh uses to save a second request. A request **without any cookie** answers `204 No Content` (a visitor, not an error); an invalid, expired or reused cookie still gets `401`. |
 | FR-AUTH-08 | If a refresh token that is already revoked is presented, the system must revoke **every** token in its family and return `401 TOKEN_REUSED` (stolen-token detection). |
 | FR-AUTH-09 | Logout must revoke the current token family and clear the cookie. |
 | FR-AUTH-10 | Protected routes must read the token from `Authorization: Bearer <token>` using passport-jwt (`ExtractJwt.fromAuthHeaderAsBearerToken()`). |
@@ -788,6 +788,8 @@ No body. The browser sends the cookie automatically.
 // Response 200 (sets a new refreshToken cookie)
 { "success": true, "statusCode": 200, "message": "Token refreshed", "data": { "accessToken": "eyJhbGciOi…" } }
 ```
+
+`?include=me` adds `"me": { …same as GET /users/me… }` to `data` (used once per page load). No cookie at all → `204 No Content`; an invalid, expired or reused cookie → `401` (a reused one also revokes the whole session).
 
 #### 9. Organization details — `GET /api/v1/orgs/:orgId`
 
@@ -1315,7 +1317,7 @@ erDiagram
 
 ### 11.5 Prisma schema
 
-This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by five migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`, `demo_flag`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
+This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by six migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`, `demo_flag`, `fk_indexes`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
 
 The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out. The `usage_jobs` migration fills `periodStart` for existing usage events (the paid period they fall in, otherwise their calendar month) and leaves them `billable = false`, so nothing recorded before it is sent to Stripe.
 
@@ -1466,6 +1468,7 @@ model Invitation {
   invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
 
   @@index([organizationId, email])
+  @@index([invitedById])
   @@map("invitations")
 }
 
@@ -1542,6 +1545,7 @@ model Subscription {
   invoices     Invoice[]
 
   @@index([status])
+  @@index([planId])
   @@map("subscriptions")
 }
 
@@ -1564,6 +1568,7 @@ model Invoice {
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@index([organizationId, periodStart])
+  @@index([subscriptionId])
   @@map("invoices")
 }
 
@@ -1602,6 +1607,7 @@ model ApiKey {
   usageEvents  UsageEvent[]
 
   @@index([organizationId])
+  @@index([createdById])
   @@map("api_keys")
 }
 
@@ -1628,6 +1634,7 @@ model UsageEvent {
   @@index([organizationId, periodStart])
   @@index([occurredAt])
   @@index([billable, reportedToStripeAt])
+  @@index([apiKeyId])
   @@map("usage_events")
 }
 
@@ -1668,6 +1675,9 @@ model MrrSnapshot {
   plan         Plan         @relation(fields: [planId], references: [id])
 
   @@id([day, organizationId])
+  // The primary key starts with day; these serve per-organization lookups and cascades
+  @@index([organizationId, day])
+  @@index([planId])
   @@map("mrr_snapshots")
 }
 
@@ -1686,6 +1696,7 @@ model AuditLog {
   actor        User?         @relation("AuditActor", fields: [actorId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([actorId])
   @@map("audit_logs")
 }
 
@@ -1704,6 +1715,7 @@ model EmailOutbox {
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+  @@index([organizationId])
   @@map("email_outbox")
 }
 
@@ -1875,9 +1887,9 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | NFR-SEC-03 | Every `/orgs/:orgId` route checks membership (404 if none) and permission (403 if missing). Tenant data is read and written only through the tenant-scoped Prisma client. |
 | NFR-SEC-04 | All input validated with Zod; unknown fields stripped. |
 | NFR-SEC-05 | helmet security headers; CORS allows only `CLIENT_URL` with `credentials: true`; JSON body limit 100 kb. |
-| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Counters in PostgreSQL, shared by all instances, except the usage limit, which is counted in memory per instance (FR-USE-09). |
+| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Auth and email-link counters are in PostgreSQL, shared by all instances; the general API limit and the usage limit are counted in memory per instance, so ordinary API calls don't each cost an extra database write (FR-USE-09). The general limit skips the usage API and the scheduled-job routes; Stripe webhooks never reach it. |
 | NFR-SEC-07 | Secrets only in environment variables. `.env.example` committed; `.env` never. Separate Stripe keys and webhook secrets for development and production. |
-| NFR-SEC-08 | Logs never contain passwords, tokens, API keys or full webhook payloads. |
+| NFR-SEC-08 | Logs never contain passwords, tokens, API keys or full webhook payloads. The request log redacts invitation tokens in paths (`/invitations/<token>`, and the `Referer` from `/invite/<token>`) and `token`/`key`/`code` query values. |
 | NFR-SEC-09 | No account can act until its email address is verified (FR-AUTH-12). Endpoints that send links answer identically for every address, so they can't be used to discover which emails have accounts. |
 | NFR-SEC-10 | Scheduled-job routes require `CRON_SECRET` (compared in constant time) and don't exist when it isn't configured. |
 
@@ -1888,7 +1900,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | NFR-PERF-01 | Usage ingestion: p95 under 150 ms at 50 concurrent requests on the production host. |
 | NFR-PERF-02 | Dashboard endpoints (summary, daily, MRR): p95 under 300 ms with 12 months of seeded data. |
 | NFR-PERF-03 | Webhook endpoint returns within 2 seconds (Stripe waits up to about 10–20 seconds before treating a delivery as failed). |
-| NFR-PERF-04 | Lighthouse performance ≥ 90 on `/pricing` and `/[orgSlug]/dashboard`. |
+| NFR-PERF-04 | Lighthouse performance ≥ 90 on `/pricing` and `/[orgSlug]/dashboard`. **Measured** (production build, Lighthouse 12, 3 runs): `/pricing` 97 mobile / 100 desktop; dashboard **84 mobile** / 100 desktop (CLS 0; accessibility, best practices and SEO 100 on both). The dashboard's mobile score is limited by design: it renders only in the browser after its JavaScript and two API round trips, because the access token lives only in memory (NFR-SEC-02); reaching 90 under Lighthouse's simulated slow 4G and 4× CPU would need server rendering of signed-in pages. |
 | NFR-PERF-05 | Every foreign key and every column used in a `WHERE` clause on a large table is indexed (see `@@index` lines in the schema). |
 
 ### 14.3 Reliability and data integrity (NFR-REL)
@@ -2520,10 +2532,13 @@ Never copy RTK Query data into a slice. After a mutation, invalidate tags instea
 
 ### 17.3 Session handling
 
-1. On first load, an `AuthBootstrap` component calls `POST /auth/refresh-token` once. Success → store the access token; failure → user is logged out.
+1. On first load, an `AuthBootstrap` component calls `POST /auth/refresh-token?include=me` once. Success → store the access token and the account; failure → user is logged out. If the account can't be loaded for another reason (API error, network), the user stays signed in and the page offers a retry ("Couldn't load your account").
 2. Protected layouts (`[orgSlug]/layout.tsx`, `admin/layout.tsx`) wait for bootstrap, then redirect to `/login` if there is no user.
 3. Pages check `can(myRole, permission)` (shared permission map) to hide actions. The API still enforces everything.
-4. Every list has loading skeletons, empty states with a call to action, and an error state with retry.
+4. Every list has loading skeletons, empty states with a call to action, and an error state with retry. Reviewed in `chore/ui-states-review`:
+   - `app/not-found.tsx` (also shown for organizations you don't belong to), `app/error.tsx` (unexpected render errors, with **Try again**) and `app/global-error.tsx` (root layout failures).
+   - Content that waits for a request uses a *latched* ready flag (`useSettledOnce`): RTK Query re-fetches a failed request whenever a component subscribes to it, so a gate that re-mounted its children on every retry looped (reproduced: ~475 requests in 8 s; now 5 in 20 s).
+   - Banners and dashboard content render together once their data is known, and charts load lazily into fixed-height boxes, so nothing jumps (CLS 0).
 
 ---
 
@@ -2575,12 +2590,14 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 - [x] `reconcile-stripe` job
 - [x] Failed-webhooks admin page
-- [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
-- [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
+- [x] Rate limits, helmet, CORS, body limits; security checklist (20.3)
+- [x] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries (every foreign key now indexed: migration `fk_indexes`; all dashboard/admin queries under 3 ms on the seeded data)
+- [x] Lighthouse pass (see NFR-PERF-04 for the numbers and the dashboard's mobile limit)
 - [x] Audit log page
-- [ ] Empty/loading/error states everywhere (review)
+- [x] Empty/loading/error states everywhere (review): 404, error and global-error pages, session-load retry, latched gates
 - [x] Demo accounts: one-click buttons on the login page, demo banner, restricted actions turned off in the UI
-- [ ] README, ERD in `docs/`, ADRs, 2-minute Loom walkthrough
+- [x] README (pitch, live demo, demo accounts, screenshots, architecture, engineering highlights, setup), ERD in `docs/`, ADRs 001–007 in `docs/adr/`
+- [ ] 2-minute Loom walkthrough (recorded by the author)
 - [ ] Full run of the manual verification checklist on production
 
 **Done when:** every item in section 19 passes on the live site, and a recruiter can try the demo in under 60 seconds.
@@ -2713,17 +2730,19 @@ Vercel deploys both projects automatically from `main`. Branch rulesets on GitHu
 
 ### 20.3 Security checklist
 
-- [ ] `.env` in `.gitignore`; `.env.example` lists every variable from section 15
-- [ ] Different Stripe keys and webhook secrets for local and production
-- [ ] Webhook verified on the raw body; route mounted before `express.json()`
-- [ ] Refresh cookie: `httpOnly`, `secure` in production, `sameSite: 'lax'`, `path: '/api/v1/auth'`
-- [ ] Access token only in Redux memory, never `localStorage`
-- [ ] bcrypt for passwords; SHA-256 hashes for API keys and invitation tokens
-- [ ] helmet, CORS allowlist with `credentials: true`, 100 kb body limit, rate limits
-- [ ] All input validated with Zod; raw SQL only via tagged templates
-- [ ] `404` for other organizations' resources; permission checked on every route
-- [ ] No passwords, tokens, keys or card data in logs
-- [ ] GitHub Dependabot alerts enabled
+Reviewed in `chore/hardening` (2026-10-19):
+
+- [x] `.env` in `.gitignore`; `.env.example` lists every variable the config reads
+- [x] Webhook secrets differ between local (`stripe listen`) and production. *Deliberate exception:* both environments use the same Stripe **test-mode** account (one sandbox, no real money); each ignores the other's customers
+- [x] Webhook verified on the raw body (1 MB limit); route mounted before `express.json()`
+- [x] Refresh cookie: `httpOnly`, `secure` in production, `sameSite: 'lax'`, `path: '/api/v1/auth'`
+- [x] Access token only in Redux memory, never `localStorage`
+- [x] bcrypt for passwords (a dummy hash is compared for unknown emails, so timing doesn't reveal accounts); SHA-256 hashes for API keys and link tokens; JWTs pinned to HS256
+- [x] helmet, CORS allowlist with `credentials: true`, 100 kb JSON body limit, rate limits (auth, email links, demo login, usage, and the general 300/min/IP limit). The website adds `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy` (no CSP yet)
+- [x] All input validated with Zod; raw SQL only via tagged templates (no `$queryRawUnsafe`)
+- [x] `404` for other organizations' resources; permission checked on every route (`npm run verify:tenancy`)
+- [x] No passwords, tokens, keys or card data in logs (request-log redaction, NFR-SEC-08)
+- [x] GitHub Dependabot updates configured (`.github/dependabot.yml`)
 
 ---
 
@@ -2772,7 +2791,7 @@ A reviewer spends about 90 seconds on your repository. Show the product, the arc
 | ADR-006 | RTK Query for server data; Redux slices only for auth and UI state |
 | ADR-007 | Next.js rewrite for same-origin cookies |
 
-Template for each: **Context · Decision · Alternatives considered · Consequences.**
+Template for each: **Context · Decision · Alternatives considered · Consequences.** Written in [`docs/adr/`](adr/README.md).
 
 ---
 

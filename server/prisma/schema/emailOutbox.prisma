@@ -13,5 +13,6 @@ model EmailOutbox {
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([status, createdAt])
+  @@index([organizationId])
   @@map("email_outbox")
 }

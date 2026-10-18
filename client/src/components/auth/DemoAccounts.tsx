@@ -3,6 +3,7 @@
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getApiError } from "@/lib/api-error";
 import { useDemoLoginMutation, useGetDemoAccountsQuery } from "@/redux/api/authApi";
 import { setCredentials } from "@/redux/features/authSlice";
@@ -15,11 +16,22 @@ import type { DemoAccount } from "@/types/api";
  */
 export default function DemoAccounts() {
   const dispatch = useAppDispatch();
-  const { data: accounts } = useGetDemoAccountsQuery();
+  const { data: accounts, isLoading } = useGetDemoAccountsQuery();
   const [demoLogin] = useDemoLoginMutation();
   const [pending, setPending] = useState<DemoAccount["account"] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Same size as the list, so the page doesn't jump when it arrives (CLS)
+  if (isLoading) {
+    return (
+      <div className="space-y-2" aria-hidden>
+        <Skeleton className="mx-auto h-4 w-40" />
+        {Array.from({ length: 4 }, (_, i) => (
+          <Skeleton key={i} className="h-[62px] w-full" />
+        ))}
+      </div>
+    );
+  }
   if (!accounts?.length) return null;
 
   const signIn = async (account: DemoAccount["account"]) => {

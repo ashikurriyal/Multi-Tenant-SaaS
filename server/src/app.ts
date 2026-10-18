@@ -2,12 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import config from './config';
 import passport from './lib/passport';
 import { prisma } from './lib/prisma';
 import globalErrorHandler from './middlewares/globalErrorHandler';
 import notFound from './middlewares/notFound';
+import { requestLogger } from './middlewares/requestLogger';
 import { WebhookRoutes } from './modules/webhook/webhook.route';
 import router from './routes';
 
@@ -17,7 +17,7 @@ app.set('trust proxy', config.trustProxy);
 
 app.use(helmet());
 app.use(cors({ origin: config.clientUrl, credentials: true }));
-app.use(morgan(config.isProd ? 'combined' : 'dev'));
+app.use(requestLogger);
 
 // Stripe webhooks need the raw body for the signature check: mount BEFORE express.json()
 app.use('/api/v1/webhooks', WebhookRoutes);

@@ -13,5 +13,6 @@ model AuditLog {
   actor        User?         @relation("AuditActor", fields: [actorId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([actorId])
   @@map("audit_logs")
 }

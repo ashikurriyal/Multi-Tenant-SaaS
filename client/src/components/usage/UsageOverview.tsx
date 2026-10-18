@@ -16,7 +16,9 @@ import UsageLimitBanner from "./UsageLimitBanner";
 export default function UsageOverview() {
   const { org, can } = useActiveOrg();
   const summaryQuery = useGetUsageSummaryQuery(org?.id ?? "", { skip: !org });
-  const { data: details } = useGetOrganizationQuery(org?.id ?? "", { skip: !org });
+  const { data: details, isError: detailsFailed } = useGetOrganizationQuery(org?.id ?? "", {
+    skip: !org,
+  });
   const s = summaryQuery.data;
   const seats = details?.entitlements;
 
@@ -98,6 +100,8 @@ export default function UsageOverview() {
             <CardTitle className="text-2xl">
               {seats ? (
                 `${seats.seatsUsed} / ${seats.seatLimit}`
+              ) : detailsFailed ? (
+                "—"
               ) : (
                 <Skeleton className="h-8 w-20" />
               )}

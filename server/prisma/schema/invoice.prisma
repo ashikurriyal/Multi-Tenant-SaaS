@@ -17,5 +17,6 @@ model Invoice {
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@index([organizationId, periodStart])
+  @@index([subscriptionId])
   @@map("invoices")
 }
