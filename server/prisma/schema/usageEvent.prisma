@@ -21,5 +21,6 @@ model UsageEvent {
   @@index([organizationId, periodStart])
   @@index([occurredAt])
   @@index([billable, reportedToStripeAt])
+  @@index([apiKeyId])
   @@map("usage_events")
 }

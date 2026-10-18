@@ -50,3 +50,20 @@ export const usageLimiter = rateLimit({
       ),
     ),
 });
+
+/**
+ * NFR-SEC-06: 300 requests per minute per IP across the API, a ceiling against scripts
+ * hammering it. Counted in memory per instance, like the usage limit: a PostgreSQL counter
+ * would add a database write to every API call. Not counted here: the usage API (its own
+ * per-key limit) and the scheduled-job routes (called by the scheduler, with a secret).
+ * Stripe webhooks are mounted outside /api/v1's router and never reach it.
+ */
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: (req) => req.path.startsWith('/usage') || req.path.startsWith('/internal/'),
+  handler: (_req, _res, next) =>
+    next(new AppError(429, 'RATE_LIMITED', 'Too many requests, please slow down')),
+});

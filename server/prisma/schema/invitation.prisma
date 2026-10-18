@@ -13,5 +13,6 @@ model Invitation {
   invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
 
   @@index([organizationId, email])
+  @@index([invitedById])
   @@map("invitations")
 }

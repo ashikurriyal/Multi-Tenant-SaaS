@@ -8,5 +8,8 @@ model MrrSnapshot {
   plan         Plan         @relation(fields: [planId], references: [id])
 
   @@id([day, organizationId])
+  // The primary key starts with day; these serve per-organization lookups and cascades
+  @@index([organizationId, day])
+  @@index([planId])
   @@map("mrr_snapshots")
 }
