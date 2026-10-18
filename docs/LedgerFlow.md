@@ -456,7 +456,7 @@ Only an Owner may grant or remove the Owner role.
 | FR-AUTH-04 | Login must use the passport-local strategy with `email` and `password`. Wrong credentials return `401 INVALID_CREDENTIALS` with the same message for unknown email and wrong password. A `BLOCKED` user returns `403 USER_BLOCKED`. A correct password for an account whose email is not verified returns `403 EMAIL_NOT_VERIFIED` (checked after the password, so the answer never reveals that an account exists). |
 | FR-AUTH-05 | On login the system must issue an access token (JWT, `JWT_ACCESS_EXPIRES_IN`, default `15m`) containing `sub` (user id), `email` and `platformRole`, and return it in the response body. |
 | FR-AUTH-06 | On login the system must issue a refresh token (JWT, `JWT_REFRESH_EXPIRES_IN`, default `7d`) with a unique `jti` and a `familyId`, store a `refresh_tokens` row whose `id` is the `jti`, and set it as cookie `refreshToken` (`httpOnly`, `secure` in production, `sameSite: 'lax'`, `path: '/api/v1/auth'`). |
-| FR-AUTH-07 | `POST /auth/refresh-token` must verify the cookie's JWT, find its row, and if valid and not revoked: revoke it, issue a new refresh token in the same family, set the new cookie, and return a new access token (rotation). |
+| FR-AUTH-07 | `POST /auth/refresh-token` must verify the cookie's JWT, find its row, and if valid and not revoked: revoke it, issue a new refresh token in the same family, set the new cookie, and return a new access token (rotation). With `?include=me` the response also carries the account (as `GET /users/me`), which the page-load refresh uses to save a second request. A request **without any cookie** answers `204 No Content` (a visitor, not an error); an invalid, expired or reused cookie still gets `401`. |
 | FR-AUTH-08 | If a refresh token that is already revoked is presented, the system must revoke **every** token in its family and return `401 TOKEN_REUSED` (stolen-token detection). |
 | FR-AUTH-09 | Logout must revoke the current token family and clear the cookie. |
 | FR-AUTH-10 | Protected routes must read the token from `Authorization: Bearer <token>` using passport-jwt (`ExtractJwt.fromAuthHeaderAsBearerToken()`). |
@@ -788,6 +788,8 @@ No body. The browser sends the cookie automatically.
 // Response 200 (sets a new refreshToken cookie)
 { "success": true, "statusCode": 200, "message": "Token refreshed", "data": { "accessToken": "eyJhbGciOi…" } }
 ```
+
+`?include=me` adds `"me": { …same as GET /users/me… }` to `data` (used once per page load). No cookie at all → `204 No Content`; an invalid, expired or reused cookie → `401` (a reused one also revokes the whole session).
 
 #### 9. Organization details — `GET /api/v1/orgs/:orgId`
 
@@ -1898,7 +1900,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | NFR-PERF-01 | Usage ingestion: p95 under 150 ms at 50 concurrent requests on the production host. |
 | NFR-PERF-02 | Dashboard endpoints (summary, daily, MRR): p95 under 300 ms with 12 months of seeded data. |
 | NFR-PERF-03 | Webhook endpoint returns within 2 seconds (Stripe waits up to about 10–20 seconds before treating a delivery as failed). |
-| NFR-PERF-04 | Lighthouse performance ≥ 90 on `/pricing` and `/[orgSlug]/dashboard`. |
+| NFR-PERF-04 | Lighthouse performance ≥ 90 on `/pricing` and `/[orgSlug]/dashboard`. **Measured** (production build, Lighthouse 12, 3 runs): `/pricing` 97 mobile / 100 desktop; dashboard **84 mobile** / 100 desktop (CLS 0; accessibility, best practices and SEO 100 on both). The dashboard's mobile score is limited by design: it renders only in the browser after its JavaScript and two API round trips, because the access token lives only in memory (NFR-SEC-02); reaching 90 under Lighthouse's simulated slow 4G and 4× CPU would need server rendering of signed-in pages. |
 | NFR-PERF-05 | Every foreign key and every column used in a `WHERE` clause on a large table is indexed (see `@@index` lines in the schema). |
 
 ### 14.3 Reliability and data integrity (NFR-REL)
@@ -2530,10 +2532,13 @@ Never copy RTK Query data into a slice. After a mutation, invalidate tags instea
 
 ### 17.3 Session handling
 
-1. On first load, an `AuthBootstrap` component calls `POST /auth/refresh-token` once. Success → store the access token; failure → user is logged out.
+1. On first load, an `AuthBootstrap` component calls `POST /auth/refresh-token?include=me` once. Success → store the access token and the account; failure → user is logged out. If the account can't be loaded for another reason (API error, network), the user stays signed in and the page offers a retry ("Couldn't load your account").
 2. Protected layouts (`[orgSlug]/layout.tsx`, `admin/layout.tsx`) wait for bootstrap, then redirect to `/login` if there is no user.
 3. Pages check `can(myRole, permission)` (shared permission map) to hide actions. The API still enforces everything.
-4. Every list has loading skeletons, empty states with a call to action, and an error state with retry.
+4. Every list has loading skeletons, empty states with a call to action, and an error state with retry. Reviewed in `chore/ui-states-review`:
+   - `app/not-found.tsx` (also shown for organizations you don't belong to), `app/error.tsx` (unexpected render errors, with **Try again**) and `app/global-error.tsx` (root layout failures).
+   - Content that waits for a request uses a *latched* ready flag (`useSettledOnce`): RTK Query re-fetches a failed request whenever a component subscribes to it, so a gate that re-mounted its children on every retry looped (reproduced: ~475 requests in 8 s; now 5 in 20 s).
+   - Banners and dashboard content render together once their data is known, and charts load lazily into fixed-height boxes, so nothing jumps (CLS 0).
 
 ---
 
@@ -2587,9 +2592,9 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Failed-webhooks admin page
 - [x] Rate limits, helmet, CORS, body limits; security checklist (20.3)
 - [x] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries (every foreign key now indexed: migration `fk_indexes`; all dashboard/admin queries under 3 ms on the seeded data)
-- [ ] Lighthouse pass
+- [x] Lighthouse pass (see NFR-PERF-04 for the numbers and the dashboard's mobile limit)
 - [x] Audit log page
-- [ ] Empty/loading/error states everywhere (review)
+- [x] Empty/loading/error states everywhere (review): 404, error and global-error pages, session-load retry, latched gates
 - [x] Demo accounts: one-click buttons on the login page, demo banner, restricted actions turned off in the UI
 - [ ] README, ERD in `docs/`, ADRs, 2-minute Loom walkthrough
 - [ ] Full run of the manual verification checklist on production

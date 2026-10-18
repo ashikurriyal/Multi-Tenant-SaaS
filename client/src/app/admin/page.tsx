@@ -2,8 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import MonthsSelect, { MONTH_OPTIONS } from "@/components/admin/MonthsSelect";
-import MovementsChart from "@/components/admin/MovementsChart";
-import MrrChart from "@/components/admin/MrrChart";
+import { LazyMovementsChart, LazyMrrChart } from "@/components/admin/LazyCharts";
 import PageHeader from "@/components/app/PageHeader";
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
@@ -104,7 +103,7 @@ export default function AdminRevenuePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <MrrChart months={mrrData} />
+              <LazyMrrChart months={mrrData} />
             </CardContent>
           </Card>
           <Card>
@@ -115,7 +114,7 @@ export default function AdminRevenuePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <MovementsChart months={mrrData} />
+              <LazyMovementsChart months={mrrData} />
             </CardContent>
           </Card>
           <MetricsTable mrr={mrrData} churn={churnData} />

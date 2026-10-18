@@ -17,7 +17,9 @@ type Props = {
 
 export default function AuthShell({ title, description, footer, children }: Props) {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12">
+    // Anchored to the top, not vertically centered: the card grows when the session check
+    // finishes (and the demo list loads), and a centered card would jump up (CLS)
+    <main className="flex flex-1 items-start justify-center px-4 py-12 sm:pt-20">
       <div className="w-full max-w-sm space-y-6">
         <Link href="/" className="block text-center text-xl font-semibold tracking-tight">
           LedgerFlow

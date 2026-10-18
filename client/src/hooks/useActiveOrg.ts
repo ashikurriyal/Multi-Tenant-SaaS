@@ -14,7 +14,11 @@ export function useActiveOrg() {
   const { data: me } = useGetMeQuery();
   const membership = me?.memberships.find((m) => m.organization.slug === orgSlug);
   // Shared with the pages that show org details (same cached query)
-  const { data: details } = useGetOrganizationQuery(membership?.organization.id ?? "", {
+  const {
+    data: details,
+    isSuccess,
+    isError,
+  } = useGetOrganizationQuery(membership?.organization.id ?? "", {
     skip: !membership,
   });
 
@@ -26,5 +30,7 @@ export function useActiveOrg() {
     can: (permission: Permission) => can(membership?.role, permission),
     // A shared demo organization (SRS 21.2): invitations, member changes and renaming are off
     isDemo: details?.isDemo ?? false,
+    // The org details request has finished (either way): banners that depend on it are known
+    detailsSettled: isSuccess || isError,
   };
 }

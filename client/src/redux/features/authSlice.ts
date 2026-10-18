@@ -34,6 +34,11 @@ const authSlice = createSlice({
       state.status = "authenticated";
       state.afterLogout = null;
     },
+    // The refresh worked but the account couldn't be loaded (API error, network): still
+    // signed in, so the page can offer a retry instead of a needless trip to /login
+    sessionRestored: (state) => {
+      state.status = "authenticated";
+    },
     setAccessToken: (state, action: PayloadAction<string>) => {
       state.accessToken = action.payload;
     },
@@ -49,6 +54,12 @@ const authSlice = createSlice({
   },
 });
 
-export const { sessionLoading, setCredentials, setAccessToken, setUser, loggedOut } =
-  authSlice.actions;
+export const {
+  sessionLoading,
+  setCredentials,
+  sessionRestored,
+  setAccessToken,
+  setUser,
+  loggedOut,
+} = authSlice.actions;
 export default authSlice.reducer;

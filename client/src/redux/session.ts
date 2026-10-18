@@ -1,6 +1,12 @@
-import { refreshAccessToken } from "./api/session";
+import { refreshSession } from "./api/session";
 import { userApi } from "./api/userApi";
-import { loggedOut, sessionLoading, setAccessToken, setUser } from "./features/authSlice";
+import {
+  loggedOut,
+  sessionLoading,
+  sessionRestored,
+  setAccessToken,
+  setUser,
+} from "./features/authSlice";
 import type { AppDispatch } from "./store";
 
 let started: Promise<void> | null = null;
@@ -10,15 +16,25 @@ export function bootstrapSession(dispatch: AppDispatch) {
   started ??= (async () => {
     dispatch(sessionLoading());
 
-    const token = await refreshAccessToken();
-    if (!token) {
+    const session = await refreshSession(true);
+    if (!session) {
       dispatch(loggedOut());
       return;
     }
-    dispatch(setAccessToken(token));
+    dispatch(setAccessToken(session.accessToken));
 
-    const me = await dispatch(userApi.endpoints.getMe.initiate()).unwrap();
-    dispatch(setUser({ id: me.id, name: me.name, email: me.email, platformRole: me.platformRole }));
+    try {
+      // Normally the refresh brought the account along; otherwise ask for it
+      const me = session.me ?? (await dispatch(userApi.endpoints.getMe.initiate()).unwrap());
+      if (session.me) dispatch(userApi.util.upsertQueryData("getMe", undefined, session.me));
+      dispatch(
+        setUser({ id: me.id, name: me.name, email: me.email, platformRole: me.platformRole }),
+      );
+    } catch (err) {
+      // Only a rejected session signs the user out; any other failure is retried on the page
+      if ((err as { status?: unknown }).status === 401) dispatch(loggedOut());
+      else dispatch(sessionRestored());
+    }
   })().catch(() => {
     dispatch(loggedOut());
   });
