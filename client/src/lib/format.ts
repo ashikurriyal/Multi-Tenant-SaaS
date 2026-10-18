@@ -19,3 +19,17 @@ export const formatDate = (iso: string | null | undefined) =>
         new Date(iso),
       )
     : "—";
+
+// "2026-10-03" (a UTC day from the API) → "Oct 3"
+export const formatDay = (day: string, withYear = false) =>
+  new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(withYear && { year: "numeric" }),
+    timeZone: "UTC",
+  }).format(new Date(`${day}T00:00:00Z`));
+
+export const formatDateTime = (iso: string) =>
+  new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(iso),
+  );

@@ -12,3 +12,9 @@ export const inviteSchema = z.object({
 
 export type OrganizationNameValues = z.infer<typeof organizationNameSchema>;
 export type InviteValues = z.infer<typeof inviteSchema>;
+
+export const apiKeySchema = z.object({
+  name: z.string().trim().min(2, "At least 2 characters").max(60, "At most 60 characters"),
+});
+
+export type ApiKeyValues = z.infer<typeof apiKeySchema>;

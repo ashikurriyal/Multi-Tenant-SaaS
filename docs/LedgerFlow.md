@@ -2463,11 +2463,11 @@ useEffect(() => {
 | `/forgot-password`, `/reset-password` | Visitors | Request a reset link; set a new password from the link | Same confirmation for every email; after reset → login |
 | `/onboarding` | Logged in, no organization | Create an organization | After leaving the last organization |
 | `/invite/[token]` | Everyone | Org name, role, accept button | Prompts login/register if needed |
-| `/[orgSlug]/dashboard` | Members | Usage vs quota, 30-day chart, plan badge | Banner at 80% and 100% usage; past-due banner |
-| `/[orgSlug]/usage` | Members | Daily usage table and chart with date range | Range stored in URL search params |
+| `/[orgSlug]/dashboard` | Members | Usage vs quota, 30-day chart, plan badge, projection, seats | Banner at 80% (dismissible for the period) and 100% usage: Free → "limit reached", paid → "in overage" with the amount so far; past-due banner |
+| `/[orgSlug]/usage` | Members | Daily usage table and chart with date range and metric filter | Range and metric stored in URL search params (`?from&to&metric`); presets 7/30/90 days; more than 90 days is caught before any request |
 | `/[orgSlug]/billing` | Billing, Admin, Owner (actions: Billing, Owner) | Current plan, plan cards (Upgrade → Checkout; Switch → preview dialog), Manage billing (portal), invoices | After Checkout (`?checkout=success`) or a plan switch: polls the subscription every 2 s until the webhook has applied it (gives up after 30 s); a past-due/unpaid/incomplete banner shows on every org page |
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
-| `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke | Show-once dialog with copy button |
+| `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke, a copyable `curl` example | Show-once dialog with copy button (can't be closed by a stray click; the key is dropped from memory when it closes); create disabled at 10 active keys |
 | `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes | Paginated |
 | `/[orgSlug]/settings/profile` | Everyone | Name, password | — |
 | `/admin` | Super admin | MRR chart, movements table, churn/NRR/ARPA cards | — |
@@ -2533,7 +2533,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] `POST /usage` with idempotency and atomic limits (section 16.4)
 - [x] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
 - [x] Usage summary and daily endpoints
-- [ ] Dashboard and usage pages with charts
+- [x] Dashboard and usage pages with charts; API keys page (show-once dialog); 80%/100% usage banners
 - [x] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn/tenants/webhook-events endpoints
 - [ ] Admin pages
 - [ ] Seed 12 months of history
