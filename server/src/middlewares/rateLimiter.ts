@@ -27,3 +27,26 @@ export const emailLinkLimiter = rateLimit({
   handler: (_req, _res, next) =>
     next(new AppError(429, 'RATE_LIMITED', 'Too many requests, please try again in 15 minutes')),
 });
+
+/**
+ * FR-USE-09: 100 requests per second per API key. Counted in memory (per server instance)
+ * rather than in PostgreSQL: a database write on every usage request would double the
+ * database work of the busiest endpoint. With several instances the effective ceiling is
+ * a multiple of 100/s; it guards against runaway clients, while the plan limit itself is
+ * enforced exactly by the atomic counter.
+ */
+export const usageLimiter = rateLimit({
+  windowMs: 1000,
+  limit: 100,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: (req) => req.apiKey?.id ?? 'no-key',
+  handler: (_req, _res, next) =>
+    next(
+      new AppError(
+        429,
+        'RATE_LIMITED',
+        'Too many usage requests: at most 100 per second per API key',
+      ),
+    ),
+});

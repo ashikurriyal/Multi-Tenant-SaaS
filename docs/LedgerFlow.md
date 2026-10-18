@@ -541,11 +541,11 @@ Only an Owner may grant or remove the Owner role.
 
 | ID | Requirement |
 | --- | --- |
-| FR-KEY-01 | Users with `apikeys:manage` may create a named API key. The full key (`lf_live_` + 32 random bytes in base64url) is returned **once** and never again. |
+| FR-KEY-01 | Users with `apikeys:manage` may create a named API key (name 2–60 characters). The full key (`lf_live_` + 32 random bytes in base64url; `lf_test_` outside production, so keys from the wrong environment are recognizable) is returned **once**, with `Cache-Control: no-store`, and never again. |
 | FR-KEY-02 | Only the SHA-256 hash and the first 12 characters (`prefix`) are stored. |
-| FR-KEY-03 | An organization may have at most 10 active (non-revoked) keys. |
-| FR-KEY-04 | Revoking sets `revokedAt`; revoked keys are rejected immediately with `401 INVALID_API_KEY`. |
-| FR-KEY-05 | The list endpoint shows name, prefix, creator, `lastUsedAt`, `createdAt` and `revokedAt`. |
+| FR-KEY-03 | An organization may have at most 10 active (non-revoked) keys; the 11th → `409 CONFLICT`. The organization row is locked while counting, so simultaneous requests can't exceed the limit. |
+| FR-KEY-04 | Revoking sets `revokedAt` (the row is kept for usage history); revoked keys are rejected on the very next request with `401 INVALID_API_KEY` — keys are checked against the database on every request. Missing, malformed, unknown and revoked keys all get the same `401`. Revoking twice → `409`. |
+| FR-KEY-05 | The list endpoint shows name, prefix, creator, `lastUsedAt`, `createdAt` and `revokedAt` (active keys first); never the key or its hash. `lastUsedAt` is updated at most once a minute per key, after the response, so high-volume ingestion doesn't write on every request. Creating and revoking are audited (`apikey.created`, `apikey.revoked`). |
 
 ### 9.9 Usage metering (FR-USE)
 
@@ -556,10 +556,10 @@ Only an Owner may grant or remove the Owner role.
 | FR-USE-03 | A repeated `idempotencyKey` for the same organization must return `202` with the **original** event id and `duplicate: true`, and must not count usage again. |
 | FR-USE-04 | For plans without overage (Free, or any organization whose access level is `FREE`), the system must reject usage that would exceed `includedUnits` for the current period with `429 PLAN_LIMIT_USAGE`. This check must be **atomic**: concurrent requests can never push usage over the limit (section 16.4). |
 | FR-USE-05 | For paid plans, usage beyond `includedUnits` is accepted and billed as overage. |
-| FR-USE-06 | The usage period is the subscription's `currentPeriodStart` → `currentPeriodEnd`. |
-| FR-USE-07 | `GET /orgs/:orgId/usage/summary` must return units used this period, included units, percentage used, projected end-of-period units (current daily average × days in period), and projected overage cost. |
-| FR-USE-08 | `GET /orgs/:orgId/usage/daily?from&to` must return a daily series from `usage_daily_rollups` (maximum 90 days per request). |
-| FR-USE-09 | The usage endpoint must be rate-limited to 100 requests per second per API key. |
+| FR-USE-06 | For a paid plan with full access, the usage period is the subscription's `currentPeriodStart` → `currentPeriodEnd`. For Free (and any organization whose access level is `FREE`), it is the current calendar month in UTC, computed at request time so the limit resets on the 1st even before `roll-free-periods` runs. |
+| FR-USE-07 | `GET /orgs/:orgId/usage/summary` must return units used this period, included units, percentage used, projected end-of-period units (current daily average × days in period; at least one day counts as elapsed, so an early burst doesn't project absurd numbers), and projected overage cost. |
+| FR-USE-08 | `GET /orgs/:orgId/usage/daily?from&to&metric` must return a zero-filled daily series from `usage_daily_rollups` (maximum 90 days per request; default the last 30 days). Rollups are refreshed by `usage-rollup`, so today's value can lag by one run. |
+| FR-USE-09 | The usage endpoint must be rate-limited to 100 requests per second per API key (`429 RATE_LIMITED`). The count is kept in memory per server instance, not in PostgreSQL, so the busiest endpoint doesn't pay an extra database write per request; with several instances the ceiling is a multiple of 100/s. The plan limit itself is enforced exactly by the atomic counter. |
 | FR-USE-10 | `lastUsedAt` on the API key should be updated at most once per minute per key. |
 
 ### 9.10 Analytics (FR-AN)
@@ -706,7 +706,7 @@ Prisma errors are translated: `P2002` (unique) → 409, `P2025` (not found) → 
 | 40 | POST | `/auth/resend-verification` | Public | Send a new verification link (same answer for every email) |
 | 41 | POST | `/auth/forgot-password` | Public | Send a password-reset link (same answer for every email) |
 | 42 | POST | `/auth/reset-password` | Public (token) | Set a new password; revoke all sessions |
-| 43 | GET, POST | `/internal/jobs/:name` | `Bearer CRON_SECRET` | Run a scheduled job (`send-emails`, `cleanup`); 404 when no secret is configured |
+| 43 | GET, POST | `/internal/jobs/:name` | `Bearer CRON_SECRET` | Run a scheduled job (any name in section 13); 404 when no secret is configured |
 
 ### 10.4 Endpoint details (main flows)
 
@@ -922,22 +922,57 @@ Content-Type: application/json
   "errorCode": "PLAN_LIMIT_USAGE", "errorDetails": [] }
 ```
 
+| Case | Response |
+| --- | --- |
+| Same `idempotencyKey` again (from any of the organization's keys, even at the limit) | `202`, message `Already recorded`, the original `eventId`, `duplicate: true`; nothing counted |
+| Missing, malformed, unknown or revoked key | `401 INVALID_API_KEY` |
+| Invalid body (metric format, quantity outside 1–10,000, `occurredAt` older than 24 h or more than 5 min ahead) | `400 VALIDATION_ERROR` |
+| More than 100 requests in one second with the same key | `429 RATE_LIMITED` (`RateLimit` headers show what is left) |
+
+`202` means "accepted for billing": overage is reported to Stripe's meter later by the `report-usage` job.
+
 #### 30. Usage summary — `GET /api/v1/orgs/:orgId/usage/summary`
 
 ```json
 {
   "success": true, "statusCode": 200, "message": "Usage summary retrieved",
   "data": {
+    "planCode": "PRO",
     "periodStart": "2026-10-01T00:00:00.000Z",
     "periodEnd": "2026-11-01T00:00:00.000Z",
     "unitsUsed": 41250,
     "includedUnits": 50000,
     "percentUsed": 82.5,
+    "overageAllowed": true,
+    "limitReached": false,
+    "overageCents": 0,
     "projectedUnits": 61500,
     "projectedOverageCents": 2300
   }
 }
 ```
+
+The period and limits come from the same rules as ingestion (FR-USE-06): the Stripe period on a paid plan with full access, otherwise the calendar month with the Free limit. `limitReached` is only ever `true` when overage isn't allowed (new usage gets `429`). Overage costs `overageUnitMicros` per unit (10,000 micros = 1 cent).
+
+#### 31. Daily usage — `GET /api/v1/orgs/:orgId/usage/daily?from=2026-10-01&to=2026-10-03&metric=docs`
+
+```json
+{
+  "success": true, "statusCode": 200, "message": "Daily usage retrieved",
+  "data": {
+    "from": "2026-10-01", "to": "2026-10-03", "metric": "docs",
+    "metrics": ["docs", "pages"],
+    "totalUnits": 30,
+    "days": [
+      { "day": "2026-10-01", "units": 10 },
+      { "day": "2026-10-02", "units": 0 },
+      { "day": "2026-10-03", "units": 20 }
+    ]
+  }
+}
+```
+
+Days are UTC; both ends are included. All parameters are optional: `to` defaults to today, `from` to 29 days before `to`, and without `metric` every metric is summed. `metrics` lists every metric seen in the range, for a filter. More than 90 days, or `from` after `to` → `400 VALIDATION_ERROR`.
 
 #### 34. Admin MRR — `GET /api/v1/admin/metrics/mrr?months=12`
 
@@ -945,11 +980,32 @@ Content-Type: application/json
 {
   "success": true, "statusCode": 200, "message": "MRR metrics retrieved",
   "data": [
-    { "month": "2026-09", "mrrCents": 1245000, "newCents": 98000, "expansionCents": 45000,
-      "contractionCents": 12000, "churnedCents": 39000, "reactivationCents": 0, "netNewCents": 92000 }
+    { "month": "2026-09", "asOf": "2026-09-30", "mrrCents": 1245000, "payingCustomers": 61,
+      "newCents": 98000, "expansionCents": 45000, "contractionCents": 12000, "churnedCents": 39000,
+      "reactivationCents": 0, "netNewCents": 92000 }
   ]
 }
 ```
+
+`months` is 1–36 (default 12), oldest first, ending with the current month. Each month compares the last snapshot day of the previous month with the last snapshot day of this one (`asOf`; for the current month, the latest snapshot). A month without snapshots carries the previous state forward, so a missed job never looks like mass churn; months before the first snapshot are zero with `asOf: null`.
+
+#### 35. Admin churn — `GET /api/v1/admin/metrics/churn?months=12`
+
+```json
+{ "month": "2026-09", "asOf": "2026-09-30", "startCustomers": 100, "endCustomers": 102,
+  "churnedCustomers": 4, "customerChurnPercent": 4, "startMrrCents": 1000000, "mrrCents": 1070000,
+  "nrrPercent": 103, "arpaCents": 10490 }
+```
+
+Percentages have two decimals. `customerChurnPercent` and `nrrPercent` are `null` without paying customers at the start; `arpaCents` is `null` without paying customers at the end.
+
+#### 36. Admin tenants — `GET /api/v1/admin/tenants?search=acme&plan=PRO&status=ACTIVE&page=1&limit=10`
+
+Each row: `id`, `name`, `slug`, `isDemo`, `createdAt`, `planCode`, `planName`, `status`, `accessLevel`, `cancelAtPeriodEnd`, `currentPeriodEnd`, `memberCount`, `mrrCents` (current, same rule as the snapshots). `search` matches the name (case-insensitive) or slug. Newest first, paginated (`meta`).
+
+#### 37. Admin webhook events — `GET /api/v1/admin/webhook-events?status=FAILED&page=1&limit=10`
+
+Each row: `id`, `type`, `status`, `attempts`, `lastError`, `nextAttemptAt`, `receivedAt`, `processedAt`. `status` defaults to `FAILED`. Payloads are never returned (NFR-SEC-08). Newest first, paginated.
 
 ---
 
@@ -999,6 +1055,7 @@ erDiagram
     string name
     string slug UK
     string stripeCustomerId UK "nullable"
+    boolean isDemo
     datetime createdAt
     datetime updatedAt
   }
@@ -1101,6 +1158,8 @@ erDiagram
     int quantity
     string idempotencyKey
     datetime occurredAt
+    datetime periodStart
+    boolean billable
     datetime reportedToStripeAt "nullable"
     datetime createdAt
   }
@@ -1211,7 +1270,7 @@ erDiagram
 | `invoices` | Stripe invoices | Upserted by `stripeInvoiceId`; never edited by users |
 | `stripe_events` | Webhook inbox | `id` = Stripe event id (dedupe); `status`, `attempts`, `nextAttemptAt` drive retries |
 | `api_keys` | Machine credentials | Only `keyHash` + `prefix` stored; max 10 active per organization |
-| `usage_events` | Every accepted usage report | Unique `(organizationId, idempotencyKey)`; `reportedToStripeAt` set after overage reporting |
+| `usage_events` | Every accepted usage report | Unique `(organizationId, idempotencyKey)`; `periodStart` = the `usage_counters` period it was added to; `billable` = recorded on a paid plan with full access, so reported to Stripe's meter; `reportedToStripeAt` set by `report-usage` |
 | `usage_counters` | Running total per billing period | Primary key `(organizationId, periodStart)`; incremented only by the atomic update in section 16.4 |
 | `usage_daily_rollups` | Daily totals for charts | Rebuilt by job; dashboards read this, not raw events |
 | `mrr_snapshots` | Daily MRR per organization | Written by job; source for all revenue analytics |
@@ -1234,9 +1293,9 @@ erDiagram
 
 ### 11.5 Prisma schema
 
-This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by three migrations (`init`, `rate_limits`, `email_verification`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
+This schema is validated with Prisma 7.10 and applied to PostgreSQL 16 by five migrations (`init`, `rate_limits`, `email_verification`, `usage_jobs`, `demo_flag`): **18 tables, 21 foreign keys**. The app keeps it as one file per model in `server/prisma/schema/` (`prisma.config.ts` points at that folder); below is the same schema in one file, also saved as `docs/schema.prisma`. The `prisma-client` generator writes to `generated/prisma`, and the database URL lives in `prisma.config.ts`.
 
-The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out.
+The `email_verification` migration marks every account that existed before it as verified, so no existing user is locked out. The `usage_jobs` migration fills `periodStart` for existing usage events (the paid period they fall in, otherwise their calendar month) and leaves them `billable = false`, so nothing recorded before it is sent to Stripe.
 
 ```prisma
 // LedgerFlow — complete Prisma schema in one file, for reading.
@@ -1335,6 +1394,8 @@ model Organization {
   name             String
   slug             String   @unique
   stripeCustomerId String?  @unique
+  // Sample data from `npm run seed:demo`; re-running it deletes and recreates these only
+  isDemo           Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -1530,6 +1591,10 @@ model UsageEvent {
   quantity           Int
   idempotencyKey     String
   occurredAt         DateTime
+  // The usage_counters period this event was added to (Stripe period or Free calendar month)
+  periodStart        DateTime
+  // Recorded while the organization had a paid subscription: reported to Stripe's meter
+  billable           Boolean   @default(false)
   reportedToStripeAt DateTime?
   createdAt          DateTime  @default(now())
 
@@ -1538,7 +1603,9 @@ model UsageEvent {
 
   @@unique([organizationId, idempotencyKey])
   @@index([organizationId, metric, occurredAt])
-  @@index([reportedToStripeAt])
+  @@index([organizationId, periodStart])
+  @@index([occurredAt])
+  @@index([billable, reportedToStripeAt])
   @@map("usage_events")
 }
 
@@ -1648,8 +1715,13 @@ export default defineConfig({
 
 1. The three plans (Free, Pro, Business) with their limits and prices. The seed never touches the Stripe price ids; run `npm run stripe:setup` afterwards to create the Stripe Products, Prices and Meter and link them.
 2. A super admin user (from `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`), already verified. Seeded demo users are verified too, so they can log in without an email.
-3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit.
-4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load.
+3. Demo tenants (section 21.2): *Acme* on Pro, *Globex* past due, *Initech* on Free near its limit. *Planned with the Phase 4 demo accounts: they need real Stripe test subscriptions for the billing demos.*
+4. 90 days of `usage_daily_rollups` and 12 months of `mrr_snapshots` across about 40 fake organizations, with realistic upgrades, downgrades and cancellations, so the admin charts tell a story on first load. **Implemented as a separate script, `npm run seed:demo`** (`server/scripts/seed-demo.ts`), so the production seed never adds sample data by accident:
+   - 40 organizations marked `organizations.isDemo = true`, each with an owner and members (within seat limits) at `@demo.ledgerflow.invalid` addresses: verified (so `cleanup` keeps them), random password (nobody can log in), and undeliverable. Nothing is created in Stripe and no usage events or counters are written, so `report-usage`, `reconcile-stripe` and `verify-usage-counters` have nothing to act on.
+   - A deterministic day-by-day simulation over 13 months: signups (more recently), conversions after 1–8 weeks, upgrades/downgrades on renewal days, ~5% churn per renewal, some reactivations, 2 past due (inside grace) and 2 cancelling at period end today.
+   - **Daily** MRR snapshots from signup to today, computed with `mrrCentsOf` (the `mrr-snapshot` job's rule; verified to give identical rows for today). Month-end-only rows would make the admin metrics see mass churn, because they use each month's last snapshot day.
+   - 90 days of usage rollups sized by plan (Free stays under its 1,000 units a month), quieter at weekends, slowly growing.
+   - Re-running deletes every `isDemo` organization and the sample users first, then recreates everything relative to today; `-- --remove` only deletes. Real organizations are never touched; a name collision gets another slug. Any database other than localhost requires `--yes`, and the target host is printed first. The admin organizations table marks these rows **Sample**.
 
 ---
 
@@ -1721,7 +1793,7 @@ One function, `getEntitlements(organizationId)`, decides what an organization ma
 
 ### 12.4 Revenue metrics
 
-MRR counts only recurring plan fees for organizations with `accessLevel = FULL` on a paid plan. Overage is reported separately as usage revenue.
+MRR counts only recurring plan fees for organizations with `accessLevel = FULL` on a paid plan, **excluding trials** (`TRIALING`): a trial counts once it converts and pays. A past-due organization still inside its grace period counts. Overage is reported separately as usage revenue. The rules are in `server/src/shared/metrics.ts` (`mrrCentsOf`, `mrrMovements`, …), used by the snapshot job and the admin endpoints.
 
 For each organization, compare MRR on the last day of month M−1 with the last day of month M:
 
@@ -1747,7 +1819,7 @@ ARPA                = MRR ÷ number of paying organizations
 - NRR = (10,000 + 800 − 200 − 300) ÷ 10,000 = **103%**
 - ARPA = 10,700 ÷ 102 = **$104.90**
 
-Put this example in a script (`npm run check:metrics`) that runs the functions in `shared/metrics.ts` and prints whether the numbers match.
+`npm run check:metrics` (in `server/`) runs this example through `shared/metrics.ts` and prints each number with PASS/FAIL.
 
 ---
 
@@ -1759,12 +1831,12 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | --- | --- | --- |
 | `retry-webhooks` | Every minute (every 10 min in production) | Process `stripe_events` that are `RECEIVED` for over a minute or `FAILED` with `nextAttemptAt ≤ now`, `attempts < 5`, oldest first; reset `PROCESSING` rows older than 10 minutes to `FAILED` first |
 | `send-emails` | Every minute (every 10 min in production) | Send `email_outbox` rows with status `PENDING` or `FAILED` and `attempts < 5`; claim each row by bumping `attempts` atomically |
-| `report-usage` | Every 5 minutes | For paid organizations, send unreported `usage_events` to Stripe Billing Meters (identifier = usage event id, so Stripe ignores duplicates); set `reportedToStripeAt` |
-| `usage-rollup` | Every hour at :05 | Recompute today's and yesterday's `usage_daily_rollups` from `usage_events` (upsert) |
-| `roll-free-periods` | Daily 00:01 | Move Free subscriptions whose `currentPeriodEnd` has passed to the next calendar month |
-| `mrr-snapshot` | Daily 00:15 | Write today's `mrr_snapshots` row for every organization |
+| `report-usage` | Every 5 minutes (every 10 min in production) | Send `billable` events without `reportedToStripeAt` (up to 500 per run, 10 at a time) to the Stripe Billing Meter: every unit, since the graduated price makes the included units free. Identifier `lf-<organizationId>-<eventId>` (unique across the development and production databases, which share one Stripe test account); Stripe refuses a repeated identifier with a 400 "already exists", which counts as reported, so a re-run never bills twice. Timestamp = the later of `occurredAt` and the event's `periodStart`, so Stripe puts it in the same period as the counter. Rows are marked per group of 10; failures stay unreported and are retried next run. Events older than 33 days are skipped (Stripe accepts 35). Stripe accepts usage for a period until about an hour after it ends, which the 10-minute schedule meets |
+| `usage-rollup` | Every hour at :05 (every 10 min in production) | Recompute the last three UTC days of `usage_daily_rollups` (per organization, metric and day of `occurredAt`) from `usage_events` in one `INSERT … SELECT … GROUP BY … ON CONFLICT DO UPDATE`; three days because usage may arrive 24 h late and a run may be late |
+| `roll-free-periods` | Daily 00:01 (03:15 in production) | Move Free-plan subscriptions whose `currentPeriodEnd` has passed to the current calendar month (UTC). Only for display: the usage limit already follows the calendar month (FR-USE-06) |
+| `mrr-snapshot` | Daily 00:15 (03:15 in production) | Write today's (UTC) `mrr_snapshots` row for every organization, zero included, in one `INSERT … SELECT FROM unnest(…) ON CONFLICT DO UPDATE`; a second run the same day overwrites with current values |
 | `reconcile-stripe` | Daily 01:00 (03:15 with `cleanup` in production) | For every organization with a Stripe customer, re-sync its subscription from Stripe (also finding subscriptions whose webhooks never arrived) and audit each corrected field as `reconciliation.corrected` (FR-WH-09) |
-| `verify-usage-counters` | Daily 01:30 | Compare `usage_counters.units` with `SUM(usage_events.quantity)` for the current period; fix and log any drift |
+| `verify-usage-counters` | Daily 01:30 (03:15 in production) | For counters of periods that started in the last 40 days, compare `units` with `SUM(quantity)` of the events with the same `periodStart`. A drift is repaired after locking the counter row (`FOR UPDATE`, so every ingest that touched it has committed and the sum is exact), audited as `usage.counter_corrected` and logged |
 | `cleanup` | Daily 03:15 | Delete accounts unverified for 7 days (and organizations only they belong to), email tokens used or expired for more than a day, and ended `rate_limits` windows |
 
 ---
@@ -1780,7 +1852,7 @@ Jobs live in `server/src/jobs/registry.ts`. On a long-lived server (local develo
 | NFR-SEC-03 | Every `/orgs/:orgId` route checks membership (404 if none) and permission (403 if missing). Tenant data is read and written only through the tenant-scoped Prisma client. |
 | NFR-SEC-04 | All input validated with Zod; unknown fields stripped. |
 | NFR-SEC-05 | helmet security headers; CORS allows only `CLIENT_URL` with `credentials: true`; JSON body limit 100 kb. |
-| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Counters in PostgreSQL, shared by all instances. |
+| NFR-SEC-06 | Rate limits: auth 5/min/IP, email links (resend verification, forgot password) 3/15 min/IP, general API 300/min/IP, usage 100/sec/API key. Counters in PostgreSQL, shared by all instances, except the usage limit, which is counted in memory per instance (FR-USE-09). |
 | NFR-SEC-07 | Secrets only in environment variables. `.env.example` committed; `.env` never. Separate Stripe keys and webhook secrets for development and production. |
 | NFR-SEC-08 | Logs never contain passwords, tokens, API keys or full webhook payloads. |
 | NFR-SEC-09 | No account can act until its email address is verified (FR-AUTH-12). Endpoints that send links answer identically for every address, so they can't be used to discover which emails have accounts. |
@@ -2136,54 +2208,41 @@ router.post('/:orgId/invitations', auth, requireOrgMember, requirePermission('me
 The limit check and the increment happen in **one SQL statement**. PostgreSQL locks the row while it updates it, so concurrent requests queue up, and each one sees the previous one's result. The limit can never be overrun.
 
 ```ts
-// server/src/modules/usage/usage.service.ts
-async function recordUsage(org: { id: string }, apiKeyId: string, input: UsageInput) {
-  const ent = await getEntitlements(org.id);
-  const periodStart = ent.periodStart;
-  const limit = ent.overageAllowed ? null : ent.includedUnits;
+// server/src/modules/usage/usage.service.ts (simplified)
+const ctx = await getUsageContext(organizationId); // periodStart, includedUnits, limit (null = overage allowed)
 
-  try {
-    return await prisma.$transaction(async (tx) => {
-      const event = await tx.usageEvent.create({
-        data: {
-          organizationId: org.id, apiKeyId, metric: input.metric, quantity: input.quantity,
-          idempotencyKey: input.idempotencyKey, occurredAt: input.occurredAt ?? new Date(),
-        },
-      });
+// A retry of something already recorded is a duplicate, even when the limit is reached
+const existing = await findOriginal(organizationId, input.idempotencyKey);
+if (existing) return { eventId: existing.id.toString(), duplicate: true, ... };
 
-      await tx.$executeRaw`
-        INSERT INTO usage_counters ("organizationId", "periodStart", "units", "updatedAt")
-        VALUES (${org.id}, ${periodStart}, 0, now())
-        ON CONFLICT DO NOTHING`;
+try {
+  return await prisma.$transaction(async (tx) => {
+    // Create the period's counter or add to it, only while it stays within the limit.
+    // No row back = the limit would be exceeded.
+    const rows = await tx.$queryRaw<{ units: number }[]>`
+      INSERT INTO usage_counters ("organizationId", "periodStart", units, "updatedAt")
+      SELECT ${organizationId}, ${ctx.periodStart}, ${input.quantity}, now()
+      WHERE ${ctx.limit}::int IS NULL OR ${input.quantity} <= ${ctx.limit}::int
+      ON CONFLICT ("organizationId", "periodStart") DO UPDATE
+        SET units = usage_counters.units + EXCLUDED.units, "updatedAt" = now()
+        WHERE ${ctx.limit}::int IS NULL OR usage_counters.units + EXCLUDED.units <= ${ctx.limit}::int
+      RETURNING units`;
+    if (rows.length === 0) throw limitReached(ctx.limit!); // 429 PLAN_LIMIT_USAGE
 
-      const updated = limit === null
-        ? await tx.$executeRaw`
-            UPDATE usage_counters SET units = units + ${input.quantity}, "updatedAt" = now()
-            WHERE "organizationId" = ${org.id} AND "periodStart" = ${periodStart}`
-        : await tx.$executeRaw`
-            UPDATE usage_counters SET units = units + ${input.quantity}, "updatedAt" = now()
-            WHERE "organizationId" = ${org.id} AND "periodStart" = ${periodStart}
-              AND units + ${input.quantity} <= ${limit}`;
-
-      // 0 rows updated = limit reached. Throwing rolls back the event insert too.
-      if (updated === 0) throw new AppError(429, 'PLAN_LIMIT_USAGE', `Monthly usage limit of ${limit} units reached. Upgrade to continue.`);
-
-      return { eventId: event.id.toString(), duplicate: false };
-    });
-  } catch (err) {
-    if (isPrismaUniqueError(err)) {
-      // Same idempotencyKey already recorded: return the original, count nothing.
-      const original = await prisma.usageEvent.findUniqueOrThrow({
-        where: { organizationId_idempotencyKey: { organizationId: org.id, idempotencyKey: input.idempotencyKey } },
-      });
-      return { eventId: original.id.toString(), duplicate: true };
-    }
-    throw err;
-  }
+    const event = await tx.usageEvent.create({ data: { ... } });
+    return { eventId: event.id.toString(), duplicate: false, periodUnits: rows[0].units, ... };
+  });
+} catch (err) {
+  // Two identical requests at the same moment: the unique index (organizationId, idempotencyKey)
+  // lets one win; the other's whole transaction, counter included, rolls back
+  if (isP2002(err)) return { eventId: (await findOriginal(...)).id.toString(), duplicate: true, ... };
+  throw err;
 }
 ```
 
-**Verified while preparing this document:** on PostgreSQL 16, 50 concurrent requests of 30 units each against a 1,000-unit limit → **exactly 33 accepted, final counter 990**, never above the limit. Reproduce it with the script in section 19.4 and put your own numbers in the README.
+One `INSERT … ON CONFLICT DO UPDATE … WHERE` statement both creates a new period's counter and does the conditional increment, so there is no separate "create the row first" step. A request that is rejected or turns out to be a duplicate leaves no event and no units behind.
+
+**Verified on the implementation** (PostgreSQL 16, branch `feat/server-usage-ingest`): 50 concurrent requests of 30 units each against the 1,000-unit Free limit → **exactly 33 accepted, 17 rejected with `PLAN_LIMIT_USAGE`, final counter 990** = the sum of the stored events; 10 more units fit exactly and 1 more is rejected. 20 concurrent requests with the same `idempotencyKey` → all `202`, one event, counted once. Reproduce it with the script in section 19.4 and put your own numbers in the README.
 
 `BigInt` ids must be converted to strings before sending JSON (`event.id.toString()`), because `JSON.stringify` cannot serialise `BigInt`.
 
@@ -2412,16 +2471,16 @@ useEffect(() => {
 | `/forgot-password`, `/reset-password` | Visitors | Request a reset link; set a new password from the link | Same confirmation for every email; after reset → login |
 | `/onboarding` | Logged in, no organization | Create an organization | After leaving the last organization |
 | `/invite/[token]` | Everyone | Org name, role, accept button | Prompts login/register if needed |
-| `/[orgSlug]/dashboard` | Members | Usage vs quota, 30-day chart, plan badge | Banner at 80% and 100% usage; past-due banner |
-| `/[orgSlug]/usage` | Members | Daily usage table and chart with date range | Range stored in URL search params |
+| `/[orgSlug]/dashboard` | Members | Usage vs quota, 30-day chart, plan badge, projection, seats | Banner at 80% (dismissible for the period) and 100% usage: Free → "limit reached", paid → "in overage" with the amount so far; past-due banner |
+| `/[orgSlug]/usage` | Members | Daily usage table and chart with date range and metric filter | Range and metric stored in URL search params (`?from&to&metric`); presets 7/30/90 days; more than 90 days is caught before any request |
 | `/[orgSlug]/billing` | Billing, Admin, Owner (actions: Billing, Owner) | Current plan, plan cards (Upgrade → Checkout; Switch → preview dialog), Manage billing (portal), invoices | After Checkout (`?checkout=success`) or a plan switch: polls the subscription every 2 s until the webhook has applied it (gives up after 30 s); a past-due/unpaid/incomplete banner shows on every org page |
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
-| `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke | Show-once dialog with copy button |
+| `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke, a copyable `curl` example | Show-once dialog with copy button (can't be closed by a stray click; the key is dropped from memory when it closes); create disabled at 10 active keys |
 | `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes | Paginated |
 | `/[orgSlug]/settings/profile` | Everyone | Name, password | — |
-| `/admin` | Super admin | MRR chart, movements table, churn/NRR/ARPA cards | — |
-| `/admin/tenants` | Super admin | Searchable organizations table | — |
-| `/admin/webhooks` | Super admin | Failed webhook events | — |
+| `/admin` | Super admin | MRR chart, movements chart and table, MRR / paying customers + ARPA / churn / NRR cards | 6, 12 or 24 months in `?months`; churn and NRR cards use the last complete month (a partial month understates them). Others get 404; a super admin without an organization lands here after login; "Platform admin" in the user menu |
+| `/admin/tenants` | Super admin | Organizations table: plan, status, members, MRR, created | Search (debounced), plan and status filters and page in the URL |
+| `/admin/webhooks` | Super admin | Webhook inbox: type, attempts (exhausted retries flagged), last error, next attempt | Failed by default; tabs for waiting, processing and processed; page in the URL |
 
 ### 17.2 State management rules
 
@@ -2478,19 +2537,21 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ### Phase 3 — Usage metering and analytics (weeks 5–6)
 
-- [ ] API keys (create once-shown, list, revoke) and `apiKeyAuth` middleware
-- [ ] `POST /usage` with idempotency and atomic limits (section 16.4)
-- [ ] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
-- [ ] Usage summary and daily endpoints; dashboard and usage pages with charts
-- [ ] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn endpoints and admin pages
-- [ ] Seed 12 months of history
+- [x] API keys (create once-shown, list, revoke) and `apiKeyAuth` middleware
+- [x] `POST /usage` with idempotency and atomic limits (section 16.4)
+- [x] Jobs: `report-usage`, `usage-rollup`, `roll-free-periods`, `verify-usage-counters`
+- [x] Usage summary and daily endpoints
+- [x] Dashboard and usage pages with charts; API keys page (show-once dialog); 80%/100% usage banners
+- [x] `mrr-snapshot` job, `shared/metrics.ts`, admin MRR/churn/tenants/webhook-events endpoints
+- [x] Admin pages (revenue, organizations, webhooks)
+- [x] Seed 12 months of history (`npm run seed:demo`)
 
 **Done when:** the admin dashboard shows a believable year of MRR, and the concurrency script (19.4) never exceeds the Free limit.
 
 ### Phase 4 — Hardening and launch (weeks 7–8)
 
 - [x] `reconcile-stripe` job
-- [ ] Failed-webhooks admin page
+- [x] Failed-webhooks admin page
 - [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
 - [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
 - [ ] Audit log page; empty/loading/error states everywhere

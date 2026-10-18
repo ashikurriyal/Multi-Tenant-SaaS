@@ -13,7 +13,7 @@ Everything runs on free plans, and no payment card is needed anywhere.
 ```
 Browser → Website (Vercel) ──/api/* rewrite──► API (Vercel) ──► Prisma Postgres
                                                  ▲
-             GitHub Actions, every 10 min ───────┘  POST /api/v1/internal/jobs/send-emails
+             GitHub Actions, every 10 min ───────┘  POST /api/v1/internal/jobs/<job>
 ```
 
 **How the background jobs work:** on Vercel nothing keeps running between requests, so the API's built-in timers (node-cron) never fire there. Instead, every job is a secret-protected route, and GitHub Actions calls it every 10 minutes. Invitation emails are also sent straight after the request, so they don't wait for the schedule. Locally, `npm run dev` still uses the built-in timers.
@@ -50,6 +50,18 @@ npm run db:seed
 ```
 
 Values given on the command line win over `server/.env`, so your local `.env` is not used for these two commands.
+
+## Sample history for the admin charts (optional)
+
+A new database has no revenue history, so the admin charts start empty. To show a believable year (about 40 sample organizations with 12 months of MRR and 90 days of usage), run once per database:
+
+```bash
+cd server
+npm run seed:demo -- --yes                                                # database in .env
+DATABASE_URL="<ledgerflow-prod connection string>" npm run seed:demo -- --yes   # production
+```
+
+It prints the target database first, and refuses anything but localhost without `--yes`. The sample organizations are marked **Sample** in the admin table, their users can't log in or receive email, and nothing is created in Stripe. Running it again replaces the sample data (dates move to today); `npm run seed:demo -- --remove --yes` deletes it. Real organizations are never touched. It costs a few dozen database operations per run.
 
 ## Production email (Gmail)
 
@@ -138,7 +150,7 @@ GitHub repository → **Settings → Secrets and variables → Actions**:
 - **Variables** tab → New variable: `API_BASE_URL` = `https://<your-api>.vercel.app`
 - **Secrets** tab → New secret: `CRON_SECRET` = secret #3 (the same value as in step 2)
 
-Then **Actions → Scheduled jobs → Run workflow**. The run should be green, and its log ends with `"job":"send-emails"`.
+Then **Actions → Scheduled jobs → Run workflow**. The run should be green. Every 10 minutes it runs `send-emails`, `retry-webhooks`, `report-usage` and `usage-rollup`; once a day (03:15 UTC) `reconcile-stripe`, `cleanup`, `roll-free-periods`, `verify-usage-counters` and `mrr-snapshot`.
 
 ## 6. Check the live site
 
@@ -155,7 +167,7 @@ Then **Actions → Scheduled jobs → Run workflow**. The run should be green, a
 | --- | --- | --- |
 | Vercel Hobby | Personal, non-commercial projects | A portfolio fits |
 | Vercel Cron (Hobby) | Once a day per job, ±59 min | Not used for frequent jobs; GitHub Actions calls them instead |
-| Prisma Postgres | 200K operations/month (whole workspace, dev included) | The 10-minute email job costs one query when nothing is queued (about 4.3K/month). Check **Usage** in the console now and then |
+| Prisma Postgres | 200K operations/month (whole workspace, dev included) | The 10-minute run (emails, webhook retries, usage reporting, usage rollup) costs about 5 queries when there is nothing to do, about 22K a month. Check **Usage** in the console now and then |
 | GitHub Actions | Unlimited for public repositories | Keep the repository public. Private repos get 2,000 free minutes/month, and this schedule alone would use them |
 | Gmail SMTP | About 500 emails/day | Verification, password-reset and invitation emails, plus payment emails later. Link emails are rate-limited (3 per 15 min per IP, one per minute per account) |
 
