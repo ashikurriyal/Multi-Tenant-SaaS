@@ -1,10 +1,12 @@
+import { prisma } from '../../lib/prisma';
 import type { TenantPrisma } from '../../lib/tenantPrisma';
 import { buildMeta, toSkipTake } from '../../utils/pagination';
 import { AUDIT_CATEGORIES, type TAuditListQuery } from './audit.validation';
 
 /**
  * FR-AUD-03, endpoint #32: the organization's audit log, newest first. `actor` is null
- * when Stripe or a scheduled job made the change. Rows are only ever read here; they are
+ * when Stripe or a scheduled job made the change; `subject` is the member a membership
+ * entry is about. Rows are only ever read here; they are
  * written by recordAudit inside the transaction of the change they describe (FR-AUD-02).
  */
 const listAuditLogs = async (db: TenantPrisma, query: TAuditListQuery) => {
@@ -32,8 +34,32 @@ const listAuditLogs = async (db: TenantPrisma, query: TAuditListQuery) => {
     db.auditLog.count({ where }),
   ]);
 
+  // Membership entries store the affected user's id; resolve them to names in one query,
+  // so the timeline can say whose role changed even after that person has left
+  const userIdOf = (json: unknown) =>
+    json && typeof json === 'object' && 'userId' in json && typeof json.userId === 'string'
+      ? json.userId
+      : null;
+  const subjectIds = [
+    ...new Set(rows.flatMap((r) => [userIdOf(r.before), userIdOf(r.after)]).filter(Boolean)),
+  ] as string[];
+  const subjects = subjectIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: subjectIds } },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
+  const subjectById = new Map(subjects.map((u) => [u.id, u]));
+
   // BigInt ids can't go through JSON.stringify
-  const data = rows.map((row) => ({ ...row, id: row.id.toString() }));
+  const data = rows.map((row) => {
+    const subjectId = userIdOf(row.after) ?? userIdOf(row.before);
+    return {
+      ...row,
+      id: row.id.toString(),
+      subject: subjectId ? (subjectById.get(subjectId) ?? null) : null,
+    };
+  });
   return { data, meta: buildMeta(query, total) };
 };
 

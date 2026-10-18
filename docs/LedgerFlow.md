@@ -983,14 +983,15 @@ Days are UTC; both ends are included. All parameters are optional: `to` defaults
   "data": [
     { "id": "912", "action": "member.role_changed", "entityType": "Membership", "entityId": "6f1c…",
       "before": { "role": "MEMBER" }, "after": { "role": "ADMIN" }, "createdAt": "2026-10-18T09:12:44.000Z",
-      "actor": { "id": "a41b…", "name": "Sarah Khan", "email": "sarah@acme.com" } },
+      "actor": { "id": "a41b…", "name": "Sarah Khan", "email": "sarah@acme.com" },
+      "subject": { "id": "7c2d…", "name": "Mia Lopez", "email": "mia@acme.com" } },
     { "id": "905", "action": "subscription.status_changed", "entityType": "Subscription", "entityId": "…",
-      "before": { "status": "ACTIVE" }, "after": { "status": "PAST_DUE" }, "createdAt": "…", "actor": null }
+      "before": { "status": "ACTIVE" }, "after": { "status": "PAST_DUE" }, "createdAt": "…", "actor": null, "subject": null }
   ]
 }
 ```
 
-Owners and admins (`audit:read`). Newest first; `actor` is `null` when Stripe or a scheduled job made the change, and keeps the name of someone who has since left. `category` groups actions by prefix: `members` (`member.*`, `invitation.*`), `api_keys` (`apikey.*`), `billing` (`checkout.*`, `plan.*`, `subscription.*`, `reconciliation.*`), `usage` (`usage.*`), `organization` (`organization.*`). Ids are strings (BigInt).
+Owners and admins (`audit:read`). Newest first; `actor` is `null` when Stripe or a scheduled job made the change. `subject` is the member a membership entry is about (resolved from `userId` in `before`/`after`, one query per page), otherwise `null`. Both keep the names of people who have since left. `category` groups actions by prefix: `members` (`member.*`, `invitation.*`), `api_keys` (`apikey.*`), `billing` (`checkout.*`, `plan.*`, `subscription.*`, `reconciliation.*`), `usage` (`usage.*`), `organization` (`organization.*`). Ids are strings (BigInt).
 
 #### 34. Admin MRR — `GET /api/v1/admin/metrics/mrr?months=12`
 
@@ -2494,7 +2495,7 @@ useEffect(() => {
 | `/[orgSlug]/billing` | Billing, Admin, Owner (actions: Billing, Owner) | Current plan, plan cards (Upgrade → Checkout; Switch → preview dialog), Manage billing (portal), invoices | After Checkout (`?checkout=success`) or a plan switch: polls the subscription every 2 s until the webhook has applied it (gives up after 30 s); a past-due/unpaid/incomplete banner shows on every org page |
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
 | `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke, a copyable `curl` example | Show-once dialog with copy button (can't be closed by a stray click; the key is dropped from memory when it closes); create disabled at 10 active keys |
-| `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes | Paginated |
+| `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes, one sentence per entry ("You changed Mia Lopez's role from Member to Admin"), grouped by day | Category filter and page in the URL; Stripe and scheduled jobs shown as the actor where they made the change |
 | `/[orgSlug]/settings/profile` | Everyone | Name, password | — |
 | `/admin` | Super admin | MRR chart, movements chart and table, MRR / paying customers + ARPA / churn / NRR cards | 6, 12 or 24 months in `?months`; churn and NRR cards use the last complete month (a partial month understates them). Others get 404; a super admin without an organization lands here after login; "Platform admin" in the user menu |
 | `/admin/tenants` | Super admin | Organizations table: plan, status, members, MRR, created | Search (debounced), plan and status filters and page in the URL |
@@ -2572,7 +2573,8 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Failed-webhooks admin page
 - [ ] Rate limits, helmet, CORS, body limits; security checklist (20.3)
 - [ ] Indexes checked with `EXPLAIN ANALYZE` on the dashboard queries; Lighthouse pass
-- [ ] Audit log page; empty/loading/error states everywhere
+- [x] Audit log page
+- [ ] Empty/loading/error states everywhere (review)
 - [ ] README, ERD in `docs/`, ADRs, demo accounts, 2-minute Loom walkthrough
 - [ ] Full run of the manual verification checklist on production
 
