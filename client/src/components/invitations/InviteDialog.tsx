@@ -39,7 +39,7 @@ const ROLE_HELP = {
 } as const;
 
 export default function InviteDialog({ seatsFull }: { seatsFull: boolean }) {
-  const { org, can } = useActiveOrg();
+  const { org, can, isDemo } = useActiveOrg();
   const [open, setOpen] = useState(false);
   const [createInvitation, { isLoading }] = useCreateInvitationMutation();
   const {
@@ -76,6 +76,16 @@ export default function InviteDialog({ seatsFull }: { seatsFull: boolean }) {
   });
 
   const seatError = errors.root?.type === "PLAN_LIMIT_SEATS";
+
+  // Invitations send real email, so they are off in the shared demo
+  if (isDemo) {
+    return (
+      <Button disabled title="Turned off in the demo">
+        <UserPlus />
+        Invite member
+      </Button>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

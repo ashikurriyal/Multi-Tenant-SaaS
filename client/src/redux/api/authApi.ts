@@ -1,5 +1,5 @@
 import type { LoginValues, RegisterValues } from "@/schemas/auth";
-import type { ApiResponse, AuthUser, OrgRole } from "@/types/api";
+import type { ApiResponse, AuthUser, DemoAccount, OrgRole } from "@/types/api";
 import { baseApi } from "./baseApi";
 
 type Session = { accessToken: string; user: AuthUser };
@@ -18,6 +18,15 @@ export const authApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     login: build.mutation<Session, LoginValues>({
       query: (body) => ({ url: "/auth/login", method: "POST", body }),
+      transformResponse: (r: ApiResponse<Session>) => r.data,
+    }),
+    // SRS 21.2: empty unless the API has DEMO_ENABLED and the demo exists right now
+    getDemoAccounts: build.query<DemoAccount[], void>({
+      query: () => "/demo/accounts",
+      transformResponse: (r: ApiResponse<DemoAccount[]>) => r.data,
+    }),
+    demoLogin: build.mutation<Session, DemoAccount["account"]>({
+      query: (account) => ({ url: "/demo/login", method: "POST", body: { account } }),
       transformResponse: (r: ApiResponse<Session>) => r.data,
     }),
     register: build.mutation<RegisterResult, RegisterArgs>({
@@ -55,4 +64,6 @@ export const {
   useForgotPasswordMutation,
   useResetPasswordMutation,
   useLogoutMutation,
+  useGetDemoAccountsQuery,
+  useDemoLoginMutation,
 } = authApi;
