@@ -238,3 +238,20 @@ export type AdminWebhookEvent = {
   receivedAt: string;
   processedAt: string | null;
 };
+
+// GET /orgs/:orgId/audit-logs (endpoint #32)
+export type AuditCategory = "members" | "api_keys" | "billing" | "usage" | "organization";
+
+type AuditPerson = { id: string; name: string; email: string };
+
+export type AuditEntry = {
+  id: string;
+  action: string; // e.g. member.role_changed
+  entityType: string;
+  entityId: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  createdAt: string;
+  actor: AuditPerson | null; // null = Stripe or a scheduled job
+  subject: AuditPerson | null; // the member a membership entry is about
+};
