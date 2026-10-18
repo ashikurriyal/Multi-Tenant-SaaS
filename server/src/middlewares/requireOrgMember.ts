@@ -10,7 +10,7 @@ const requireOrgMember = catchAsync(async (req, _res, next) => {
   const membership = organizationId
     ? await prisma.membership.findUnique({
         where: { userId_organizationId: { userId: req.user!.id, organizationId } },
-        select: { id: true, role: true },
+        select: { id: true, role: true, organization: { select: { isDemo: true } } },
       })
     : null;
 
@@ -20,6 +20,7 @@ const requireOrgMember = catchAsync(async (req, _res, next) => {
     id: organizationId,
     role: membership.role,
     membershipId: membership.id,
+    isDemo: membership.organization.isDemo,
     db: tenantPrisma(organizationId),
   };
   next();

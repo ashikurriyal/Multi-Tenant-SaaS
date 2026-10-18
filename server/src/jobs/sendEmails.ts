@@ -9,6 +9,9 @@ const MAX_ATTEMPTS = 5; // FR-MAIL-03
 const BATCH_SIZE = 50;
 // Secrets inside the payload (e.g. invitation links) are removed once delivered
 const SENSITIVE_KEYS = ['link'];
+// Reserved for documentation and testing (RFC 2606/6761): the demo and sample accounts
+// use them, and no mail server would accept them, so they are marked done unsent
+const UNDELIVERABLE = /@([a-z0-9-]+\.)*(example|invalid)$|@example\.(com|net|org)$/i;
 
 let running = false;
 
@@ -24,6 +27,7 @@ export async function sendEmails(): Promise<JobResult> {
   const startedAt = Date.now();
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
 
   try {
     const batch = await prisma.emailOutbox.findMany({
@@ -38,6 +42,15 @@ export async function sendEmails(): Promise<JobResult> {
         data: { attempts: { increment: 1 } },
       });
       if (claim.count === 0) continue; // another worker took it
+
+      if (UNDELIVERABLE.test(email.toEmail)) {
+        await prisma.emailOutbox.update({
+          where: { id: email.id },
+          data: { status: 'SENT', sentAt: new Date(), lastError: 'Not sent: reserved test domain' },
+        });
+        skipped++;
+        continue;
+      }
 
       try {
         const { subject, text, html } = renderEmail(email.template, email.data);
@@ -63,10 +76,10 @@ export async function sendEmails(): Promise<JobResult> {
     // Counts only: logs never contain addresses, links, tokens or payloads (NFR-SEC-08)
     if (batch.length > 0) {
       console.info(
-        `[send-emails] done in ${Date.now() - startedAt}ms: ${sent} sent, ${failed} failed`,
+        `[send-emails] done in ${Date.now() - startedAt}ms: ${sent} sent, ${failed} failed, ${skipped} to test domains not sent`,
       );
     }
-    return { sent, failed };
+    return { sent, failed, notSent: skipped };
   } finally {
     running = false;
   }

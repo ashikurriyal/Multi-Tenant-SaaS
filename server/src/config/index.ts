@@ -49,6 +49,11 @@ const envSchema = z
     GRACE_PERIOD_DAYS: z.coerce.number().int().min(0).max(60).default(7),
     // Proxies in front of the API whose X-Forwarded-For is trusted (Express "trust proxy")
     TRUST_PROXY: z.coerce.number().int().min(0).default(1),
+    // One-click demo accounts on the login page, reset nightly by the reset-demo job
+    DEMO_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
   })
   .refine((env) => env.JWT_ACCESS_SECRET !== env.JWT_REFRESH_SECRET, {
     message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different',
@@ -100,6 +105,7 @@ const config = {
   cronSecret: env.CRON_SECRET,
   trustProxy: env.TRUST_PROXY,
   gracePeriodDays: env.GRACE_PERIOD_DAYS,
+  demoEnabled: env.DEMO_ENABLED,
   stripe: {
     secretKey: env.STRIPE_SECRET_KEY,
     meterEventName: env.STRIPE_METER_EVENT_NAME,

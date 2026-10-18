@@ -20,6 +20,7 @@ declare global {
         id: string;
         role: OrgRole;
         membershipId: string;
+        isDemo: boolean; // a shared demo organization (some actions are refused)
         db: TenantPrisma;
       };
     }

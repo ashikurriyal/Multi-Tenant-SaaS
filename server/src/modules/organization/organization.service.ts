@@ -66,7 +66,7 @@ const getOrganization = async (db: TenantPrisma, organizationId: string, myRole:
   const [organization, entitlements] = await Promise.all([
     db.organization.findUniqueOrThrow({
       where: { id: organizationId },
-      select: { id: true, name: true, slug: true, createdAt: true },
+      select: { id: true, name: true, slug: true, isDemo: true, createdAt: true },
     }),
     getEntitlements(organizationId),
   ]);
