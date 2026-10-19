@@ -2512,7 +2512,7 @@ useEffect(() => {
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
 | `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke, a copyable `curl` example | Show-once dialog with copy button (can't be closed by a stray click; the key is dropped from memory when it closes); create disabled at 10 active keys |
 | `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes, one sentence per entry ("You changed Mia Lopez's role from Member to Admin"), grouped by day | Category filter and page in the URL; Stripe and scheduled jobs shown as the actor where they made the change |
-| `/[orgSlug]/settings/profile` | Everyone | Name, password | — |
+| `/[orgSlug]/settings/profile` | Everyone | Name, password (with confirmation) | Also in the user menu. Changing the password signs out every device, so the page signs out and returns to `/login` with a message; turned off for demo users |
 | `/admin` | Super admin | MRR chart, movements chart and table, MRR / paying customers + ARPA / churn / NRR cards | 6, 12 or 24 months in `?months`; churn and NRR cards use the last complete month (a partial month understates them). Others get 404; a super admin without an organization lands here after login; "Platform admin" in the user menu |
 | `/admin/tenants` | Super admin | Organizations table: plan, status, members, MRR, created | Search (debounced), plan and status filters and page in the URL |
 | `/admin/webhooks` | Super admin | Webhook inbox: type, attempts (exhausted retries flagged), last error, next attempt | Failed by default; tabs for waiting, processing and processed; page in the URL |
@@ -2606,7 +2606,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ## 19. Manual verification checklist
 
-Automated tests are deferred to a later phase. Until then, run this checklist before every release with Postman and the Stripe CLI, and tick each item. Save the Postman collection in the repo (`docs/postman/LedgerFlow.postman_collection.json`).
+Automated tests are deferred to a later phase. Until then, run this checklist before every release with Postman and the Stripe CLI, and tick each item. Save the Postman collection in the repo (`docs/postman/LedgerFlow.postman_collection.json`). **Done:** 45 requests in 13 folders with saved variables and status tests, plus local and production environments; see [`docs/postman/README.md`](postman/README.md).
 
 ### 19.1 Setup
 

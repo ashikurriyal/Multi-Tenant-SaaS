@@ -35,3 +35,29 @@ export type LoginValues = z.infer<typeof loginSchema>;
 export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
 export type RegisterValues = z.infer<typeof registerSchema>;
+
+// Profile (server/src/modules/user/user.validation.ts)
+export const profileSchema = z.object({
+  name: z.string().trim().min(2, "At least 2 characters").max(60, "At most 60 characters"),
+});
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password"),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(72, "At most 72 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    message: "The passwords don't match",
+    path: ["confirmPassword"],
+  })
+  .refine((v) => v.currentPassword !== v.newPassword, {
+    message: "New password must be different from the current one",
+    path: ["newPassword"],
+  });
+
+export type ProfileValues = z.infer<typeof profileSchema>;
+export type ChangePasswordValues = z.infer<typeof changePasswordSchema>;

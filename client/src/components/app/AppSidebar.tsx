@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   ScrollText,
   Settings,
+  UserRound,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -29,7 +30,8 @@ import type { Permission } from "@/lib/permissions";
 import OrgSwitcher from "./OrgSwitcher";
 import UserMenu from "./UserMenu";
 
-type NavItem = { title: string; path: string; icon: typeof Users; permission: Permission };
+// No permission = every member (e.g. their own profile)
+type NavItem = { title: string; path: string; icon: typeof Users; permission?: Permission };
 
 const MAIN: NavItem[] = [
   { title: "Dashboard", path: "dashboard", icon: LayoutDashboard, permission: "usage:read" },
@@ -41,6 +43,7 @@ const SETTINGS: NavItem[] = [
   { title: "API keys", path: "settings/api-keys", icon: KeyRound, permission: "apikeys:manage" },
   { title: "Audit log", path: "settings/audit", icon: ScrollText, permission: "audit:read" },
   { title: "General", path: "settings/general", icon: Settings, permission: "org:update" },
+  { title: "Profile", path: "settings/profile", icon: UserRound },
 ];
 
 export default function AppSidebar() {
@@ -50,7 +53,7 @@ export default function AppSidebar() {
 
   const renderItems = (items: NavItem[]) =>
     items
-      .filter((item) => can(item.permission))
+      .filter((item) => !item.permission || can(item.permission))
       .map((item) => {
         const href = `/${org.slug}/${item.path}`;
         return (
