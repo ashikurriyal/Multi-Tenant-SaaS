@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowLeft, Building2, LineChart, Shield, Webhook } from "lucide-react";
+import { ArrowLeft, Building2, LineChart, Webhook } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import UserMenu from "@/components/app/UserMenu";
+import { LogoMark } from "@/components/brand/Logo";
 import {
   Sidebar,
   SidebarContent,
@@ -37,9 +38,7 @@ export default function AdminSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/admin">
-                <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <Shield className="size-4" />
-                </div>
+                <LogoMark size={32} />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">LedgerFlow</span>
                   <span className="truncate text-xs text-muted-foreground">Platform admin</span>

@@ -18,14 +18,14 @@ export default function GlobalError({
           display: "grid",
           placeItems: "center",
           fontFamily: "system-ui, sans-serif",
-          color: "#171717",
+          color: "#0B1215",
           background: "#fff",
         }}
       >
         <title>Something went wrong · LedgerFlow</title>
         <div style={{ maxWidth: 420, padding: 24, textAlign: "center" }}>
           <h1 style={{ fontSize: 22, margin: "0 0 8px" }}>Something went wrong</h1>
-          <p style={{ color: "#737373", fontSize: 14, margin: "0 0 16px" }}>
+          <p style={{ color: "#5B676E", fontSize: 14, margin: "0 0 16px" }}>
             LedgerFlow couldn&apos;t load. Try again in a moment.
             {error.digest ? ` (Reference: ${error.digest})` : ""}
           </p>
@@ -33,7 +33,7 @@ export default function GlobalError({
             type="button"
             onClick={() => retry()}
             style={{
-              background: "#171717",
+              background: "#0E7C66",
               color: "#fff",
               border: 0,
               borderRadius: 6,

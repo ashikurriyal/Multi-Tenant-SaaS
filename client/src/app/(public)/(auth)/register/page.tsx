@@ -11,8 +11,9 @@ export const metadata: Metadata = { title: "Create account · LedgerFlow" };
 export default function RegisterPage() {
   return (
     <AuthShell
+      tabs
       title="Create your account"
-      description="Start on the Free plan. You can invite your team and upgrade later."
+      description="Start on the Free plan. Invite your team and upgrade whenever you're ready."
       footer={
         <span>
           Already have an account?{" "}

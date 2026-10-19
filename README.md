@@ -4,9 +4,9 @@
 
 [![CI](https://github.com/ashikurriyal/Multi-Tenant-SaaS/actions/workflows/ci.yml/badge.svg)](https://github.com/ashikurriyal/Multi-Tenant-SaaS/actions/workflows/ci.yml)
 
-**Live demo:** [ledgerflow-web-portal.vercel.app](https://ledgerflow-web-portal.vercel.app) · one-click demo accounts on the login page · payments in Stripe test mode
+**Live demo:** [ledgerflow-web-portal.vercel.app](https://ledgerflow-web-portal.vercel.app) · a landing page with a scripted product walkthrough · one-click demo accounts on the login page · payments in Stripe test mode
 
-![Dashboard of a Pro organization at 81% of its included usage](docs/screenshots/dashboard.png)
+![LedgerFlow landing page: headline, live demo buttons and the animated product walkthrough](docs/screenshots/landing.png)
 
 ## Try it
 
