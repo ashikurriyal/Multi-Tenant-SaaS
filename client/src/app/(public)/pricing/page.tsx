@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { Logo } from "@/components/brand/Logo";
 import PlanFeatures from "@/components/billing/PlanFeatures";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,8 +86,8 @@ export default function PricingPage() {
   return (
     <main className="mx-auto w-full max-w-5xl space-y-10 px-4 py-16">
       <div className="space-y-3 text-center">
-        <Link href="/" className="text-sm font-semibold tracking-tight">
-          LedgerFlow
+        <Link href="/" className="mx-auto flex w-fit" aria-label="LedgerFlow home">
+          <Logo size={28} />
         </Link>
         <h1 className="text-4xl font-semibold tracking-tight">Simple, usage-based pricing</h1>
         <p className="text-muted-foreground">

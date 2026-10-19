@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, LockKeyhole, Mail } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -71,6 +71,8 @@ export default function LoginForm() {
         )}
         <FormField
           id="email"
+          icon={Mail}
+          placeholder="you@company.com"
           label="Email"
           type="email"
           autoComplete="email"
@@ -79,6 +81,8 @@ export default function LoginForm() {
         />
         <FormField
           id="password"
+          icon={LockKeyhole}
+          placeholder="Your password"
           label="Password"
           type="password"
           autoComplete="current-password"
@@ -97,7 +101,10 @@ export default function LoginForm() {
           {isLoading ? "Logging in…" : "Log in"}
         </Button>
       </form>
-      <DemoAccounts />
+      {/* On large screens the demo accounts sit in the brand panel instead */}
+      <div className="lg:hidden">
+        <DemoAccounts />
+      </div>
     </div>
   );
 }

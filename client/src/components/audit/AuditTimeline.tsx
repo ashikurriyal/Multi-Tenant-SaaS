@@ -39,7 +39,7 @@ export default function AuditTimeline({ entries, meId, today, yesterday }: Props
               const { icon: Icon, sentence } = describeAudit(entry, meId);
               return (
                 <li key={entry.id} className="relative pb-5 last:pb-0">
-                  <span className="absolute top-0.5 -left-[37px] flex size-6 items-center justify-center rounded-full border bg-background">
+                  <span className="absolute top-0.5 -left-9.25 flex size-6 items-center justify-center rounded-full border bg-background">
                     <Icon className="size-3.5 text-muted-foreground" aria-hidden />
                   </span>
                   <p className="text-sm text-muted-foreground">{sentence}</p>

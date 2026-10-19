@@ -12,13 +12,14 @@ import {
 import { formatMonth, formatSignedMoney } from "@/lib/format";
 import type { MrrMonth } from "@/types/api";
 
-// Gains stack above zero, losses below (SRS 12.4 movements)
+// Gains stack above zero, losses below (SRS 12.4 movements). Colors are the theme's
+// chart palette (globals.css), in the same order as the landing page's chart.
 export const MOVEMENT_CONFIG = {
-  new: { label: "New", color: "oklch(0.62 0.15 150)" },
-  expansion: { label: "Expansion", color: "oklch(0.55 0.14 250)" },
-  reactivation: { label: "Reactivation", color: "oklch(0.72 0.14 85)" },
-  contraction: { label: "Contraction", color: "oklch(0.7 0.15 50)" },
-  churned: { label: "Churned", color: "oklch(0.58 0.2 27)" },
+  new: { label: "New", color: "var(--chart-1)" },
+  expansion: { label: "Expansion", color: "var(--chart-2)" },
+  reactivation: { label: "Reactivation", color: "var(--chart-3)" },
+  contraction: { label: "Contraction", color: "var(--chart-4)" },
+  churned: { label: "Churned", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
 const compactMoney = new Intl.NumberFormat("en-US", {

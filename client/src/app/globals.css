@@ -4,6 +4,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* A slightly larger type scale than Tailwind's default (14px / 12px), for a data-heavy app
+   that is read for long stretches */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.375rem;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -48,72 +57,75 @@
 }
 
 :root {
+  /* LedgerFlow theme (see the design's Theme board). Brand teal #0E7C66 passes 5.1:1 on
+     white, and white text on it passes too. Charts: New, Expansion, Reactivation,
+     Contraction, Churned. */
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: #ffffff;
+  --foreground: #0b1215;
+  --card: #ffffff;
+  --card-foreground: #0b1215;
+  --popover: #ffffff;
+  --popover-foreground: #0b1215;
+  --primary: #0e7c66;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f5f4;
+  --secondary-foreground: #0b1215;
+  --muted: #f2f5f4;
+  --muted-foreground: #5b676e;
+  --accent: #e7f4f0;
+  --accent-foreground: #0a6152;
+  --destructive: #c0352b;
+  --border: #e3e8e6;
+  --input: #d4dcda;
+  --ring: #0e7c66;
+  --chart-1: #0e7c66;
+  --chart-2: #4f6bed;
+  --chart-3: #9479e8;
+  --chart-4: #f0a630;
+  --chart-5: #ec5b72;
+  --sidebar: #f7f9f8;
+  --sidebar-foreground: #0b1215;
+  --sidebar-primary: #0e7c66;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e7f4f0;
+  --sidebar-accent-foreground: #0a6152;
+  --sidebar-border: #e3e8e6;
+  --sidebar-ring: #0e7c66;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0b1215;
+  --foreground: #e6eeec;
+  --card: #111d21;
+  --card-foreground: #e6eeec;
+  --popover: #111d21;
+  --popover-foreground: #e6eeec;
+  --primary: #5fd3b5;
+  --primary-foreground: #0b1215;
+  --secondary: #18262b;
+  --secondary-foreground: #e6eeec;
+  --muted: #18262b;
+  --muted-foreground: #a9b8b4;
+  --accent: #16302b;
+  --accent-foreground: #bfefe0;
+  --destructive: #ec5b72;
+  --border: #1f2e33;
+  --input: #2a3c42;
+  --ring: #5fd3b5;
+  --chart-1: #5fd3b5;
+  --chart-2: #8ea2f7;
+  --chart-3: #c3b4f4;
+  --chart-4: #f7cb7e;
+  --chart-5: #f49aa9;
+  --sidebar: #0d171a;
+  --sidebar-foreground: #e6eeec;
+  --sidebar-primary: #5fd3b5;
+  --sidebar-primary-foreground: #0b1215;
+  --sidebar-accent: #16302b;
+  --sidebar-accent-foreground: #bfefe0;
+  --sidebar-border: #1f2e33;
+  --sidebar-ring: #5fd3b5;
 }
 
 @layer base {
@@ -122,5 +134,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Digits of equal width, so amounts and counts line up in tables and stat cards */
+  table,
+  [data-slot="card"] {
+    font-variant-numeric: tabular-nums;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
   }
 }

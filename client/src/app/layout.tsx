@@ -23,7 +23,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // The landing page scrolls smoothly to its sections; this tells Next.js to switch that
+    // off while it navigates between pages, so route changes jump to the top instantly
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
       {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen) add attributes to <body>
           before React loads. This ignores attribute differences on <body> itself only;
           mismatches inside the page are still reported. */}
