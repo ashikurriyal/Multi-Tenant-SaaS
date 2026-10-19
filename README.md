@@ -114,6 +114,7 @@ Both apps also have `build`, `lint` and `typecheck`.
 - [Blueprint and SRS](docs/LedgerFlow.md): requirements, API reference, data model, business rules, jobs, security checklist
 - [Architecture decision records](docs/adr/README.md)
 - [Deployment guide](docs/deployment.md): Vercel, Prisma Postgres, Stripe, email, scheduled jobs, demo accounts (all free)
+- [Postman collection](docs/postman/README.md): every endpoint, with local and production environments
 - [ERD](docs/ledgerflow-erd.svg) · [SQL schema](docs/ledgerflow-schema.sql) · [Prisma schema](docs/schema.prisma)
 
 ## Git workflow
