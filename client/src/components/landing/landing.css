@@ -593,46 +593,47 @@
     stroke-width: 6;
   }
 }
-/* Chart intro plays once, fully, when the figure scrolls into view (the script adds .io, then .inview) */
+/* Chart intro plays once, fully, when the figure scrolls into view (the script sets data-io,
+   then data-inview) */
 @media (prefers-reduced-motion: no-preference) {
-  .lf.motion .rev-fig.io:not(.inview) .rev-line,
-  .lf.motion .rev-fig.io:not(.inview) .mv-net {
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .rev-line,
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .mv-net {
     stroke-dasharray: 1;
     stroke-dashoffset: 1;
   }
-  .lf.motion .rev-fig.io:not(.inview) .rev-area,
-  .lf.motion .rev-fig.io:not(.inview) .rev-dot,
-  .lf.motion .rev-fig.io:not(.inview) .mv-netdot {
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .rev-area,
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .rev-dot,
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .mv-netdot {
     opacity: 0;
   }
-  .lf.motion .rev-fig.io:not(.inview) .mv-up,
-  .lf.motion .rev-fig.io:not(.inview) .mv-dn {
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .mv-up,
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .mv-dn {
     transform: scaleY(0);
   }
-  .lf.motion .rev-fig.inview .rev-line {
+  .lf.motion .rev-fig[data-inview] .rev-line {
     stroke-dasharray: 1;
     animation: lf-linedraw 1.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both;
   }
-  .lf.motion .rev-fig.inview .rev-area {
+  .lf.motion .rev-fig[data-inview] .rev-area {
     animation: lf-fadein 0.9s ease 0.7s both;
   }
-  .lf.motion .rev-fig.inview .rev-dot {
+  .lf.motion .rev-fig[data-inview] .rev-dot {
     animation:
       lf-fadein 0.3s ease 1.5s both,
       lf-dotpulse 2.2s ease-in-out 1.9s infinite;
   }
-  .lf.motion .rev-fig.inview .mv-up,
-  .lf.motion .rev-fig.inview .mv-dn {
+  .lf.motion .rev-fig[data-inview] .mv-up,
+  .lf.motion .rev-fig[data-inview] .mv-dn {
     animation-name: lf-grow;
     animation-duration: 0.65s;
     animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
     animation-fill-mode: both;
   }
-  .lf.motion .rev-fig.inview .mv-net {
+  .lf.motion .rev-fig[data-inview] .mv-net {
     stroke-dasharray: 1;
     animation: lf-linedraw 1.1s cubic-bezier(0.4, 0, 0.2, 1) 0.9s both;
   }
-  .lf.motion .rev-fig.inview .mv-netdot {
+  .lf.motion .rev-fig[data-inview] .mv-netdot {
     animation: lf-fadein 0.3s ease 1.8s both;
   }
 }
@@ -687,10 +688,10 @@
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .lf.motion .rev-fig.inview .rng-in {
+  .lf.motion .rev-fig[data-inview] .rng-in {
     animation: lf-rngin 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
-  .lf.motion .rev-fig.io:not(.inview) .rng-in {
+  .lf.motion .rev-fig[data-io]:not([data-inview]) .rng-in {
     opacity: 0;
   }
 }
@@ -1251,31 +1252,31 @@
   .lf.motion .pf-link:hover .btn-arrow {
     transform: translateX(4px);
   }
-  .lf.motion .pf.io:not(.inview) .pf-dot,
-  .lf.motion .pf.io:not(.inview) .pf-tl {
+  .lf.motion .pf[data-io]:not([data-inview]) .pf-dot,
+  .lf.motion .pf[data-io]:not([data-inview]) .pf-tl {
     opacity: 0;
   }
-  .lf.motion .pf.io:not(.inview) .pf-meter-fill,
-  .lf.motion .pf.io:not(.inview) .pf-bar-fill {
+  .lf.motion .pf[data-io]:not([data-inview]) .pf-meter-fill,
+  .lf.motion .pf[data-io]:not([data-inview]) .pf-bar-fill {
     transform: scaleX(0);
   }
-  .lf.motion .pf.inview .pf-dots .pf-dot {
+  .lf.motion .pf[data-inview] .pf-dots .pf-dot {
     animation: lf-dotin 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
-  .lf.motion .pf.inview .pf-meter-fill {
+  .lf.motion .pf[data-inview] .pf-meter-fill {
     animation: lf-fill 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both;
   }
-  .lf.motion .pf.inview .pf-bar-fill {
+  .lf.motion .pf[data-inview] .pf-bar-fill {
     animation: lf-fill 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) 0.4s both;
   }
-  .lf.motion .pf.inview .pf-bar-fill.b2 {
+  .lf.motion .pf[data-inview] .pf-bar-fill.b2 {
     animation-delay: 0.75s;
   }
-  .lf.motion .pf.inview .pf-node {
+  .lf.motion .pf[data-inview] .pf-node {
     animation: lf-step 6s ease-in-out infinite;
     animation-delay: calc(var(--i) * 0.6s);
   }
-  .lf.motion .pf.inview .pf-tl {
+  .lf.motion .pf[data-inview] .pf-tl {
     animation: lf-tl 0.4s ease both;
     animation-delay: calc(0.3s + var(--i) * 0.45s);
   }
@@ -1457,33 +1458,33 @@
   .lf.motion .dm-card:hover .btn-arrow {
     transform: translateX(4px);
   }
-  .lf.motion #demo.io:not(.inview) .dm-fill {
+  .lf.motion #demo[data-io]:not([data-inview]) .dm-fill {
     transform: scaleX(0);
   }
-  .lf.motion #demo.io:not(.inview) .dm-perm,
-  .lf.motion #demo.io:not(.inview) .dm-segs i {
+  .lf.motion #demo[data-io]:not([data-inview]) .dm-perm,
+  .lf.motion #demo[data-io]:not([data-inview]) .dm-segs i {
     opacity: 0;
   }
-  .lf.motion #demo.inview .dm-fill {
+  .lf.motion #demo[data-inview] .dm-fill {
     animation: lf-fill 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) 0.25s both;
   }
-  .lf.motion #demo.inview .dm-perm {
+  .lf.motion #demo[data-inview] .dm-perm {
     animation: lf-tl 0.35s ease both;
   }
-  .lf.motion #demo.inview .dm-perm:nth-child(2) {
+  .lf.motion #demo[data-inview] .dm-perm:nth-child(2) {
     animation-delay: 0.1s;
   }
-  .lf.motion #demo.inview .dm-perm:nth-child(3) {
+  .lf.motion #demo[data-inview] .dm-perm:nth-child(3) {
     animation-delay: 0.2s;
   }
-  .lf.motion #demo.inview .dm-perm:nth-child(4) {
+  .lf.motion #demo[data-inview] .dm-perm:nth-child(4) {
     animation-delay: 0.3s;
   }
-  .lf.motion #demo.inview .dm-segs i {
+  .lf.motion #demo[data-inview] .dm-segs i {
     animation: lf-dotin 0.3s ease both;
     animation-delay: calc(0.2s + var(--i) * 0.07s);
   }
-  .lf.motion #demo.inview .dm-segs i:first-child {
+  .lf.motion #demo[data-inview] .dm-segs i:first-child {
     animation:
       lf-dotin 0.3s ease 0.2s both,
       lf-segpulse 1.6s ease-in-out 1s infinite;
@@ -3013,10 +3014,11 @@
 .lf .sp-flare {
   will-change: opacity, transform;
 }
-/* Everything in the hero stops animating once it is scrolled out of view (LandingEffects) */
-.lf #top.is-off *,
-.lf #top.is-off *::before,
-.lf #top.is-off *::after {
+/* Everything in the hero stops animating once it is scrolled out of view (data-off, set by
+   LandingEffects) */
+.lf #top[data-off] *,
+.lf #top[data-off] *::before,
+.lf #top[data-off] *::after {
   animation-play-state: paused !important;
 }
 .lf .sp-beam {
@@ -3442,11 +3444,12 @@
   .lf.motion .glow-ring > span {
     animation: lf-ring-spin 9s linear infinite;
   }
-  /* Reveal on enter: the script adds .rvjs to the page and .is-in to each element as it scrolls in */
-  .lf.motion.rvjs .rv:not(.is-in) {
+  /* Reveal on enter: the script sets data-rvjs on the page and data-in on each element as it
+     scrolls in (data attributes, so React re-renders never clear them) */
+  .lf.motion[data-rvjs] .rv:not([data-in]) {
     opacity: 0;
   }
-  .lf.motion.rvjs .rv.is-in {
+  .lf.motion[data-rvjs] .rv[data-in] {
     animation: lf-reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 }

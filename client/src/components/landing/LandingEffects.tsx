@@ -2,6 +2,10 @@
 
 import { useEffect } from "react";
 
+// State is kept in data-* attributes (data-rvjs, data-in, data-io, data-inview, data-off), never
+// in className: React rewrites className whenever a component re-renders with a new one, which
+// would silently undo a reveal (the FAQ panel vanished that way).
+//
 // Page-wide behaviour for the landing page, all skipped for visitors who prefer reduced
 // motion: reveal-on-enter for .rv blocks, one-time intros for [data-lf-io] sections and the
 // revenue chart, pausing the hero while it is off screen, and the spotlight leaning toward
@@ -16,7 +20,7 @@ export default function LandingEffects() {
     const cleanups: (() => void)[] = [];
 
     // Reveal: elements entering together are staggered top-to-bottom, left-to-right
-    root.classList.add("rvjs");
+    root.dataset.rvjs = "";
     const reveal = new IntersectionObserver(
       (entries) => {
         entries
@@ -28,7 +32,7 @@ export default function LandingEffects() {
           })
           .forEach((el, i) => {
             el.style.animationDelay = `${Math.min(i, 6) * 70}ms`;
-            el.classList.add("is-in");
+            el.dataset.in = "";
             reveal.unobserve(el);
           });
       },
@@ -42,23 +46,23 @@ export default function LandingEffects() {
       (entries) => {
         for (const en of entries) {
           if (!en.isIntersecting) continue;
-          en.target.classList.add("inview");
+          (en.target as HTMLElement).dataset.inview = "";
           intro.unobserve(en.target);
         }
       },
       { threshold: 0.25 },
     );
     root.querySelectorAll('[data-lf="revfig"], [data-lf-io]').forEach((el) => {
-      el.classList.add("io");
+      (el as HTMLElement).dataset.io = "";
       intro.observe(el);
     });
     cleanups.push(() => intro.disconnect());
 
-    // The hero's animations pause while it is off screen (#top.is-off in landing.css)
+    // The hero's animations pause while it is off screen (#top[data-off] in landing.css)
     const hero = document.getElementById("top");
     if (hero) {
       const heroSeen = new IntersectionObserver(([en]) =>
-        hero.classList.toggle("is-off", !en.isIntersecting),
+        hero.toggleAttribute("data-off", !en.isIntersecting),
       );
       heroSeen.observe(hero);
       cleanups.push(() => heroSeen.disconnect());
@@ -93,7 +97,7 @@ export default function LandingEffects() {
 
     return () => {
       cleanups.forEach((fn) => fn());
-      root.classList.remove("rvjs");
+      delete root.dataset.rvjs;
     };
   }, []);
 
