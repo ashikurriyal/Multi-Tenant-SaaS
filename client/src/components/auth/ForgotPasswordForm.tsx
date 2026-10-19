@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { MailCheck } from "lucide-react";
+import { Mail, MailCheck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -51,6 +51,8 @@ export default function ForgotPasswordForm() {
     <form onSubmit={onSubmit} noValidate className="space-y-4">
       <FormField
         id="email"
+        icon={Mail}
+        placeholder="you@company.com"
         label="Email"
         type="email"
         autoComplete="email"

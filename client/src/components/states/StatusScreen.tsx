@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoMark } from "@/components/brand/Logo";
 
 type Props = {
   code?: string; // e.g. "404"
@@ -12,7 +13,10 @@ export default function StatusScreen({ code, title, message, action }: Props) {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="max-w-md space-y-4 text-center">
-        {code && <p className="text-sm font-medium text-muted-foreground">{code}</p>}
+        <Link href="/" className="mx-auto flex w-fit" aria-label="LedgerFlow home">
+          <LogoMark size={40} />
+        </Link>
+        {code && <p className="font-mono text-sm font-medium text-primary">{code}</p>}
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="text-sm text-muted-foreground">{message}</p>
         <div className="flex flex-wrap items-center justify-center gap-2 pt-2">

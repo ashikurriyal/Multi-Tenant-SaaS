@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Building2, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -88,6 +88,8 @@ export default function RegisterForm() {
       )}
       <FormField
         id="name"
+        icon={UserRound}
+        placeholder="Jane Cooper"
         label="Your name"
         autoComplete="name"
         error={errors.name}
@@ -95,6 +97,8 @@ export default function RegisterForm() {
       />
       <FormField
         id="email"
+        icon={Mail}
+        placeholder="jane@company.com"
         label="Work email"
         type="email"
         autoComplete="email"
@@ -103,6 +107,8 @@ export default function RegisterForm() {
       />
       <FormField
         id="password"
+        icon={LockKeyhole}
+        placeholder="At least 8 characters"
         label="Password"
         type="password"
         autoComplete="new-password"
@@ -111,6 +117,8 @@ export default function RegisterForm() {
       />
       <FormField
         id="organizationName"
+        icon={Building2}
+        placeholder="Acme Inc."
         label="Company name"
         autoComplete="organization"
         error={errors.organizationName}

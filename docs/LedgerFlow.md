@@ -146,7 +146,7 @@ Every tool below is either already in your stack or is small enough to learn in 
 | Layer | Choice | Purpose |
 | --- | --- | --- |
 | Frontend framework | Next.js (App Router), React, TypeScript | Pages, routing, server rendering of public pages |
-| Styling and UI | Tailwind CSS, shadcn/ui, Magic UI (landing page only) | Consistent, accessible components |
+| Styling and UI | Tailwind CSS, shadcn/ui (teal theme in `globals.css`); the landing page has its own scoped stylesheet | Consistent, accessible components |
 | Client state | **Redux Toolkit** (slices for auth and UI state) | Access token in memory, active organization, UI flags |
 | Server data | **RTK Query** | API calls, caching, tag-based invalidation, polling, automatic token refresh |
 | Forms | React Hook Form + Zod | Form state and validation |
@@ -302,7 +302,8 @@ ledgerflow/
 ├── client/
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── (public)/     page.tsx (landing) · pricing/ · login/ · register/ · invite/[token]/
+│   │   │   ├── page.tsx      landing page (components/landing/)
+│   │   │   ├── (public)/     pricing/ · (auth)/ {login, register, forgot-password, reset-password, verify-email, invite/[token]}/
 │   │   │   ├── [orgSlug]/    dashboard/ · usage/ · billing/ · settings/{members,api-keys,audit,profile}/
 │   │   │   └── admin/        page.tsx · tenants/ · webhooks/
 │   │   ├── redux/
@@ -2499,9 +2500,9 @@ useEffect(() => {
 
 | Route | Who | Content | Key behaviour |
 | --- | --- | --- | --- |
-| `/` | Everyone | Landing page (Magic UI accents) | Static, fast |
+| `/` | Everyone | Landing page: scripted product walkthrough, revenue preview with a 6/12/24-month switch, API examples, pricing estimator, FAQ | Static (prerendered); native scrolling; animations pause off screen and are off for reduced motion |
 | `/pricing` | Everyone | Plan cards from `GET /plans` | Static shell; plans rendered on the server per request inside `<Suspense>` (the build never calls the API) |
-| `/login`, `/register` | Visitors | Forms (React Hook Form + Zod) | Register ends on a "Check your inbox" screen with resend; login shows a resend action for `EMAIL_NOT_VERIFIED`; "Forgot password?" link; demo-account buttons on login |
+| `/login`, `/register` | Visitors | Forms (React Hook Form + Zod) in a split layout shared by all account pages (`(auth)/layout.tsx`): form on the left, brand panel on the right | Log in / Sign up switch; register ends on a "Check your inbox" screen with resend; login shows a resend action for `EMAIL_NOT_VERIFIED`; "Forgot password?" link; demo-account buttons in the brand panel (under the login form on small screens) |
 | `/verify-email` | Visitors | Verifies the token from the link | Logs in and continues to `?next=` or the first organization; expired link → resend |
 | `/forgot-password`, `/reset-password` | Visitors | Request a reset link; set a new password from the link | Same confirmation for every email; after reset → login |
 | `/onboarding` | Logged in, no organization | Create an organization | After leaving the last organization |
@@ -2512,7 +2513,7 @@ useEffect(() => {
 | `/[orgSlug]/settings/members` | Members (manage: Admin, Owner) | Members table, invitations, invite dialog | Seat-limit message with upgrade link |
 | `/[orgSlug]/settings/api-keys` | Admin, Owner | Keys table, create, revoke, a copyable `curl` example | Show-once dialog with copy button (can't be closed by a stray click; the key is dropped from memory when it closes); create disabled at 10 active keys |
 | `/[orgSlug]/settings/audit` | Admin, Owner | Timeline of changes, one sentence per entry ("You changed Mia Lopez's role from Member to Admin"), grouped by day | Category filter and page in the URL; Stripe and scheduled jobs shown as the actor where they made the change |
-| `/[orgSlug]/settings/profile` | Everyone | Name, password | — |
+| `/[orgSlug]/settings/profile` | Everyone | Name, password (with confirmation) | Also in the user menu. Changing the password signs out every device, so the page signs out and returns to `/login` with a message; turned off for demo users |
 | `/admin` | Super admin | MRR chart, movements chart and table, MRR / paying customers + ARPA / churn / NRR cards | 6, 12 or 24 months in `?months`; churn and NRR cards use the last complete month (a partial month understates them). Others get 404; a super admin without an organization lands here after login; "Platform admin" in the user menu |
 | `/admin/tenants` | Super admin | Organizations table: plan, status, members, MRR, created | Search (debounced), plan and status filters and page in the URL |
 | `/admin/webhooks` | Super admin | Webhook inbox: type, attempts (exhausted retries flagged), last error, next attempt | Failed by default; tabs for waiting, processing and processed; page in the URL |
@@ -2597,6 +2598,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 - [x] Empty/loading/error states everywhere (review): 404, error and global-error pages, session-load retry, latched gates
 - [x] Demo accounts: one-click buttons on the login page, demo banner, restricted actions turned off in the UI
 - [x] README (pitch, live demo, demo accounts, screenshots, architecture, engineering highlights, setup), ERD in `docs/`, ADRs 001–007 in `docs/adr/`
+- [x] Landing page, LedgerFlow logo and favicon, teal theme across the app, redesigned auth pages
 - [ ] 2-minute Loom walkthrough (recorded by the author)
 - [ ] Full run of the manual verification checklist on production
 
@@ -2606,7 +2608,7 @@ Each phase ends with something deployed and demoable. Deploy from week 1 so depl
 
 ## 19. Manual verification checklist
 
-Automated tests are deferred to a later phase. Until then, run this checklist before every release with Postman and the Stripe CLI, and tick each item. Save the Postman collection in the repo (`docs/postman/LedgerFlow.postman_collection.json`).
+Automated tests are deferred to a later phase. Until then, run this checklist before every release with Postman and the Stripe CLI, and tick each item. Save the Postman collection in the repo (`docs/postman/LedgerFlow.postman_collection.json`). **Done:** 45 requests in 13 folders with saved variables and status tests, plus local and production environments; see [`docs/postman/README.md`](postman/README.md).
 
 ### 19.1 Setup
 
@@ -2776,7 +2778,7 @@ A reviewer spends about 90 seconds on your repository. Show the product, the arc
 - **Stripe:** Acme and Globex are real test-mode subscriptions on **test clocks**. Acme subscribed 12 days ago with `4242` (active, 12 days into its period, so plan-change prorations and the portal work). Globex's trial ended 2 days ago and the renewal charge failed on a declining card, so it is genuinely `past_due` with a 7-day grace period. The clocks stay frozen, so nothing renews or retries until the next reset. Without a Stripe key the same states are written to the database directly.
 - **Usage:** recorded like the usage API records it (events, counter, rollups) for the current period: Acme 81% of 50,000, Globex 34%, Initech 95% of 1,000, plus 90 days of chart history. Demo usage is never sent to Stripe.
 - **Guards:** in demo organizations, invitations, member and role changes (including leaving) and renaming answer `403 DEMO_RESTRICTED`; demo users can't create organizations, accept invitations or rename themselves. Everything else works (plan changes, portal, checkout, API keys, usage) and is undone by the reset.
-- **Client:** the login page lists the accounts from `GET /demo/accounts` (nothing shows when the list is empty). Inside a demo organization a banner names the demo user and offers "Create your own account" (signs out, then opens `/register`); the invite button, role menus, remove/leave and the rename form are shown as turned off instead of failing after a click.
+- **Client:** the login and sign-up pages list the accounts from `GET /demo/accounts` in the brand panel beside the form, and under the login form on small screens (nothing shows when the list is empty). Inside a demo organization a banner names the demo user and offers "Create your own account" (signs out, then opens `/register`); the invite button, role menus, remove/leave and the rename form are shown as turned off instead of failing after a click.
 - **Reset:** the `reset-demo` job (nightly) and `npm run demo:reset -- --yes` delete the previous demo's Stripe objects (the test clock with its customer, or a customer a visitor created through Checkout) and the demo organizations and users of **this** database only, then rebuild everything (about 25 seconds). Visitors signed in at that moment are signed out.
 
 ### 21.3 Architecture decision records (one page each)

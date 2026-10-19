@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronsUpDown, LogOut, Shield } from "lucide-react";
+import { ChevronsUpDown, LogOut, Shield, UserRound } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -17,6 +18,8 @@ import { useGetMeQuery } from "@/redux/api/userApi";
 
 export default function UserMenu() {
   const { data: me } = useGetMeQuery();
+  // The profile lives under an organization: this one, or the first (e.g. from /admin)
+  const { orgSlug } = useParams<{ orgSlug?: string }>();
   const { logout, isLoggingOut } = useLogout();
   if (!me) return null;
   const initial = me.name[0]?.toUpperCase() ?? "?";
@@ -42,6 +45,14 @@ export default function UserMenu() {
               {me.email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {(orgSlug ?? me.memberships[0]?.organization.slug) && (
+              <DropdownMenuItem asChild>
+                <Link href={`/${orgSlug ?? me.memberships[0]!.organization.slug}/settings/profile`}>
+                  <UserRound className="size-4" />
+                  Profile
+                </Link>
+              </DropdownMenuItem>
+            )}
             {me.platformRole === "SUPER_ADMIN" && (
               <DropdownMenuItem asChild>
                 <Link href="/admin">

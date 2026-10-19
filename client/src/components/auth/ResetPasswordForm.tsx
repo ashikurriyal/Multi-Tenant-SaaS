@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -80,6 +80,7 @@ export default function ResetPasswordForm() {
       )}
       <FormField
         id="password"
+        icon={LockKeyhole}
         label="New password"
         type="password"
         autoComplete="new-password"
@@ -88,6 +89,7 @@ export default function ResetPasswordForm() {
       />
       <FormField
         id="confirmPassword"
+        icon={LockKeyhole}
         label="Repeat new password"
         type="password"
         autoComplete="new-password"

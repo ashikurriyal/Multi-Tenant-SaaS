@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Mail } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -85,6 +85,7 @@ export default function VerifyEmailView() {
       </p>
       <FormField
         id="resend-email"
+        icon={Mail}
         label="Email"
         type="email"
         autoComplete="email"

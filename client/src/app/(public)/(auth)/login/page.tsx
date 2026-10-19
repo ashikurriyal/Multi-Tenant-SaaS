@@ -11,8 +11,9 @@ export const metadata: Metadata = { title: "Log in · LedgerFlow" };
 export default function LoginPage() {
   return (
     <AuthShell
-      title="Log in"
-      description="Welcome back. Log in to your LedgerFlow account."
+      tabs
+      title="Welcome back"
+      description="Log in to your workspace, or try a demo account with one click."
       footer={
         <span>
           New to LedgerFlow?{" "}
