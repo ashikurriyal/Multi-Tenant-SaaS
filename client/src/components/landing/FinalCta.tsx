@@ -1,474 +1,200 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+import ButtonLink from "./ButtonLink";
+import LiveDot from "./LiveDot";
+import { reveal } from "./ui";
 
 // The closing call to action: a dark panel, a fanned stack of demo accounts and an
 // event ticker
+
+const STEPS = ["Pick an account", "Explore billing and usage", "Upgrade with 4242…"];
+
+// Back to front. Each card's resting and hover positions, and how long its float takes.
+const STACK = [
+  {
+    initials: "IN",
+    avatar: "bg-ink-soft",
+    org: "Initech",
+    pill: { label: "Free · 95%", className: "bg-line-soft text-[#3F4B52]" },
+    meter: { label: "Usage", value: "950 / 1,000", pct: 95, color: "#C0352B" },
+    place:
+      "opacity-85 [transform:translate(28px,-112px)_rotate(7deg)_scale(0.92)] group-hover/stack:[transform:translate(70px,-150px)_rotate(9deg)_scale(0.94)]",
+    float: "motion-safe:[animation:lf-float_8s_ease-in-out_1.6s_infinite]",
+  },
+  {
+    initials: "GL",
+    avatar: "bg-[#7A2E1E]",
+    org: "Globex",
+    pill: { label: "Past due", className: "bg-[#FCEDE8] text-[#A33A1E]" },
+    meter: { label: "Grace period", value: "7 days", pct: 14, color: "#E0533F" },
+    place:
+      "opacity-93 [transform:translate(-26px,-70px)_rotate(-5deg)_scale(0.96)] group-hover/stack:[transform:translate(-70px,-82px)_rotate(-8deg)_scale(0.97)]",
+    float: "motion-safe:[animation:lf-float_7s_ease-in-out_0.8s_infinite]",
+  },
+  {
+    initials: "AC",
+    avatar: "bg-ink",
+    org: "Acme Corp",
+    pill: { label: "Pro · active", className: "bg-primary/10 text-brand-deep" },
+    meter: { label: "Usage", value: "81%", pct: 81, color: "#C27C0E" },
+    place:
+      "[transform:translate(0,-10px)_rotate(1deg)] group-hover/stack:[transform:translate(14px,18px)_rotate(2deg)_scale(1.02)]",
+    float: "motion-safe:[animation:lf-float_6s_ease-in-out_infinite]",
+  },
+];
+
+const EVENTS = [
+  { tag: "202", color: "text-mint", text: "usage recorded · +25" },
+  { tag: "evt", color: "text-sky", text: "invoice.paid" },
+  { tag: "202", color: "text-mint", text: "usage recorded · +10" },
+  { tag: "plan", color: "text-lime", text: "acme → business" },
+  { tag: "429", color: "text-gold", text: "PLAN_LIMIT_USAGE" },
+  { tag: "evt", color: "text-sky", text: "customer.subscription.updated" },
+  { tag: "202", color: "text-mint", text: "usage recorded · +40" },
+  { tag: "mrr", color: "text-lime", text: "snapshot saved · $2,376" },
+  { tag: "evt", color: "text-[#F49AA9]", text: "invoice.payment_failed" },
+  { tag: "202", color: "text-mint", text: "duplicate · not counted" },
+];
+
 export default function FinalCta() {
   return (
-    <>
-      <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "8px 24px 96px" }}>
+    <section className="mx-auto max-w-300 px-6 pt-2 pb-24">
+      <div
+        className={cn(
+          reveal,
+          "relative isolate overflow-hidden rounded-[28px] border border-night-line bg-ink text-cloud shadow-[0_40px_80px_-48px_rgba(11,18,21,0.8)]",
+        )}
+      >
+        {/* Two drifting glows and a faint grid */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-20">
+          <span className="absolute -top-40 -right-30 h-105 w-140 rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--color-primary)_70%,transparent),transparent)] blur-[60px] motion-safe:animate-aurora" />
+          <span className="absolute -bottom-50 -left-40 h-90 w-120 rounded-full bg-[radial-gradient(closest-side,rgba(212,247,161,0.22),transparent)] blur-[60px] motion-safe:animate-[lf-aurora_20s_ease-in-out_infinite_alternate-reverse]" />
+        </div>
         <div
-          className="rv cta"
-          style={{
-            position: "relative",
-            overflow: "hidden",
-            isolation: "isolate",
-            borderRadius: "28px",
-            background: "#0B1215",
-            color: "#E6EEEC",
-            border: "1px solid #1C2A2F",
-            boxShadow: "0 40px 80px -48px rgba(11,18,21,.8)",
-          }}
-        >
-          <div className="cta-aurora" aria-hidden="true">
-            <span className="a1" />
-            <span className="a2" />
-          </div>
-          <div className="cta-grid" aria-hidden="true" />
-          <div className="cta-inner">
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: "0" }}>
-              <span
-                style={{
-                  alignSelf: "flex-start",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  height: "30px",
-                  padding: "0 12px",
-                  borderRadius: "999px",
-                  background: "rgba(95,211,181,.1)",
-                  border: "1px solid rgba(95,211,181,.25)",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  color: "#BFEFE0",
-                }}
-              >
-                <span
-                  className="ping"
-                  style={{
-                    width: "7px",
-                    height: "7px",
-                    borderRadius: "999px",
-                    background: "#5FD3B5",
-                  }}
-                />
-                Live demo · Stripe test mode
+          aria-hidden
+          className="bg-grid-faint pointer-events-none absolute inset-0 -z-10 mask-[radial-gradient(ellipse_80%_90%_at_70%_40%,#000_20%,transparent_80%)]"
+        />
+
+        <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] items-center gap-10 px-14 pt-16 pb-12 max-[900px]:grid-cols-1 max-[900px]:px-7 max-[900px]:pt-12 max-[900px]:pb-9">
+          <div className="flex min-w-0 flex-col gap-5">
+            <span className="inline-flex h-7.5 items-center gap-2 self-start rounded-full border border-mint/25 bg-mint/10 px-3 text-[13px] font-medium text-[#BFEFE0]">
+              <LiveDot className="size-1.75 bg-mint" />
+              Live demo · Stripe test mode
+            </span>
+            <h2 className="text-[clamp(32px,4vw,52px)] leading-[1.04] font-[650] tracking-[-0.035em] text-white">
+              See it running in
+              <br />
+              <span className="bg-linear-to-r from-mint from-10% to-lime to-90% bg-clip-text text-transparent">
+                under a minute
               </span>
-              <h2
-                style={{
-                  margin: "0",
-                  fontSize: "clamp(32px, 4vw, 52px)",
-                  lineHeight: "1.04",
-                  letterSpacing: "-0.035em",
-                  fontWeight: "650",
-                  color: "#FFFFFF",
-                }}
+            </h2>
+            <p className="max-w-115 text-[17px] leading-[1.6] text-mist">
+              Open a demo account with one click, no password needed, or start your own workspace on
+              the Free plan.
+            </p>
+            <div className="mt-1 flex flex-wrap gap-3">
+              <ButtonLink
+                href="/login"
+                shine
+                arrow
+                className="min-h-12.5 rounded-[12px] bg-mint px-5.5 text-[16px] font-semibold text-ink hover:bg-[#7de3c8] hover:text-ink hover:shadow-[0_14px_34px_-12px_rgba(95,211,181,0.7)] focus-visible:outline-mint"
               >
-                See it running in
-                <br />
-                <span className="pf-grad">under a minute</span>
-              </h2>
-              <p
-                style={{
-                  margin: "0",
-                  maxWidth: "460px",
-                  fontSize: "17px",
-                  lineHeight: "1.6",
-                  color: "#A9B8B4",
-                }}
+                Try the live demo
+              </ButtonLink>
+              <Link
+                href="/register"
+                className="inline-flex min-h-12.5 items-center rounded-[12px] border border-[#2f4248] bg-white/3 px-5.5 text-[16px] font-medium text-white no-underline transition-[border-color,background-color,translate] duration-250 hover:border-mint hover:bg-mint/8 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-mint motion-safe:hover:-translate-y-0.5"
               >
-                Open a demo account with one click, no password needed, or start your own workspace
-                on the Free plan.
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "4px" }}>
-                <Link
-                  className="btn-primary cta-shine cta-main"
-                  href="/login"
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    textDecoration: "none",
-                    color: "#0B1215",
-                    background: "#5FD3B5",
-                    padding: "0 22px",
-                    borderRadius: "12px",
-                    minHeight: "50px",
-                    boxSizing: "border-box",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  Try the live demo
-                  <svg
-                    className="btn-arrow"
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </Link>
-                <Link className="cta-ghost" href="/register">
-                  Create a free account
-                </Link>
-              </div>
+                Create a free account
+              </Link>
+            </div>
+            <ol className="mt-1.5 flex flex-wrap items-center gap-2">
+              {STEPS.map((step, i) => (
+                <li key={step} className="flex items-center gap-2">
+                  {i > 0 && <span aria-hidden className="h-px w-4.5 bg-[#2a3c42]" />}
+                  <span className="inline-flex items-center gap-2 text-[13.5px] text-fog">
+                    <span className="inline-flex size-5.5 items-center justify-center rounded-full border border-[#2a3c42] bg-[#16242a] font-mono text-[11px] text-mint">
+                      {i + 1}
+                    </span>
+                    {step}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div
+            aria-hidden
+            className="group/stack relative h-75 max-[900px]:mx-auto max-[900px]:h-65 max-[900px]:w-full max-[900px]:max-w-105"
+          >
+            {STACK.map((c) => (
               <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  gap: "8px",
-                  marginTop: "6px",
-                }}
+                key={c.org}
+                className={cn(
+                  "absolute top-1/2 left-1/2 -ml-37.5 flex w-75 flex-col gap-2.5 rounded-[16px] border border-line bg-white p-4 text-ink shadow-[0_24px_50px_-24px_rgba(0,0,0,0.7)] transition-transform duration-550 ease-[cubic-bezier(0.3,1.2,0.4,1)]",
+                  c.place,
+                  c.float,
+                )}
               >
-                <span className="cta-step">
-                  <span>1</span>
-                  Pick an account
-                </span>
-                <span className="cta-sep" aria-hidden="true" />
-                <span className="cta-step">
-                  <span>2</span>
-                  Explore billing and usage
-                </span>
-                <span className="cta-sep" aria-hidden="true" />
-                <span className="cta-step">
-                  <span>3</span>
-                  Upgrade with 4242…
-                </span>
-              </div>
-            </div>
-            <div className="cta-stack" aria-hidden="true">
-              <div className="cta-card c3">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
+                <div className="flex items-center justify-between gap-2.5">
+                  <span className="inline-flex items-center gap-2.5">
                     <span
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "9px",
-                        background: "#2F3B42",
-                        color: "#FFFFFF",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                      }}
+                      className={cn(
+                        "inline-flex size-8 items-center justify-center rounded-[9px] text-[12px] font-semibold text-white",
+                        c.avatar,
+                      )}
                     >
-                      IN
+                      {c.initials}
                     </span>
-                    <span style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: "600", lineHeight: "1" }}>
-                        Initech
-                      </span>
-                      <span style={{ fontSize: "11.5px", lineHeight: "1", color: "#5B676E" }}>
-                        Owner
-                      </span>
+                    <span className="flex flex-col gap-0.75">
+                      <span className="text-[14px] leading-none font-semibold">{c.org}</span>
+                      <span className="text-[11.5px] leading-none text-subtle">Owner</span>
                     </span>
                   </span>
                   <span
-                    style={{
-                      fontSize: "11.5px",
-                      fontWeight: "600",
-                      color: "#3F4B52",
-                      background: "#EEF2F1",
-                      borderRadius: "999px",
-                      padding: "3px 9px",
-                    }}
+                    className={cn(
+                      "rounded-full px-2.25 py-0.75 text-[11.5px] font-semibold",
+                      c.pill.className,
+                    )}
                   >
-                    Free · 95%
+                    {c.pill.label}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "11.5px",
-                    color: "#5B676E",
-                  }}
-                >
-                  <span>Usage</span>
-                  <span style={{ fontWeight: "600", color: "#C0352B" }}>950 / 1,000</span>
+                <div className="flex justify-between text-[11.5px] text-subtle">
+                  <span>{c.meter.label}</span>
+                  <span className="font-semibold" style={{ color: c.meter.color }}>
+                    {c.meter.value}
+                  </span>
                 </div>
-                <span
-                  style={{
-                    display: "block",
-                    height: "6px",
-                    borderRadius: "999px",
-                    background: "#E6ECEA",
-                    overflow: "hidden",
-                  }}
-                >
+                <span className="block h-1.5 overflow-hidden rounded-full bg-[#E6ECEA]">
                   <span
-                    style={{
-                      display: "block",
-                      height: "100%",
-                      width: "95%",
-                      borderRadius: "999px",
-                      background: "#C0352B",
-                    }}
+                    className="block h-full rounded-full"
+                    style={{ width: `${c.meter.pct}%`, background: c.meter.color }}
                   />
                 </span>
               </div>
-              <div className="cta-card c2">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
-                    <span
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "9px",
-                        background: "#7A2E1E",
-                        color: "#FFFFFF",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                      }}
-                    >
-                      GL
-                    </span>
-                    <span style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: "600", lineHeight: "1" }}>
-                        Globex
-                      </span>
-                      <span style={{ fontSize: "11.5px", lineHeight: "1", color: "#5B676E" }}>
-                        Owner
-                      </span>
-                    </span>
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "11.5px",
-                      fontWeight: "600",
-                      color: "#A33A1E",
-                      background: "#FCEDE8",
-                      borderRadius: "999px",
-                      padding: "3px 9px",
-                    }}
-                  >
-                    Past due
-                  </span>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "11.5px",
-                    color: "#5B676E",
-                  }}
-                >
-                  <span>Grace period</span>
-                  <span style={{ fontWeight: "600", color: "#E0533F" }}>7 days</span>
-                </div>
-                <span
-                  style={{
-                    display: "block",
-                    height: "6px",
-                    borderRadius: "999px",
-                    background: "#E6ECEA",
-                    overflow: "hidden",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "block",
-                      height: "100%",
-                      width: "14%",
-                      borderRadius: "999px",
-                      background: "#E0533F",
-                    }}
-                  />
-                </span>
-              </div>
-              <div className="cta-card c1">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "10px",
-                  }}
-                >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
-                    <span
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "9px",
-                        background: "#0B1215",
-                        color: "#FFFFFF",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                      }}
-                    >
-                      AC
-                    </span>
-                    <span style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                      <span style={{ fontSize: "14px", fontWeight: "600", lineHeight: "1" }}>
-                        Acme Corp
-                      </span>
-                      <span style={{ fontSize: "11.5px", lineHeight: "1", color: "#5B676E" }}>
-                        Owner
-                      </span>
-                    </span>
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "11.5px",
-                      fontWeight: "600",
-                      color: "#0A6152",
-                      background: "color-mix(in srgb, var(--lf-accent) 10%, #FFFFFF)",
-                      borderRadius: "999px",
-                      padding: "3px 9px",
-                    }}
-                  >
-                    Pro · active
-                  </span>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "11.5px",
-                    color: "#5B676E",
-                  }}
-                >
-                  <span>Usage</span>
-                  <span style={{ fontWeight: "600", color: "#C27C0E" }}>81%</span>
-                </div>
-                <span
-                  style={{
-                    display: "block",
-                    height: "6px",
-                    borderRadius: "999px",
-                    background: "#E6ECEA",
-                    overflow: "hidden",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "block",
-                      height: "100%",
-                      width: "81%",
-                      borderRadius: "999px",
-                      background: "#C27C0E",
-                    }}
-                  />
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="cta-ticker" aria-hidden="true">
-            <div className="cta-track">
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                usage recorded · +25
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#9DB8F5" }}>evt</b>
-                invoice.paid
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                usage recorded · +10
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#D4F7A1" }}>plan</b>
-                acme → business
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#F2C66D" }}>429</b>
-                PLAN_LIMIT_USAGE
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#9DB8F5" }}>evt</b>
-                customer.subscription.updated
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                usage recorded · +40
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#D4F7A1" }}>mrr</b>
-                snapshot saved · $2,376
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#F49AA9" }}>evt</b>
-                invoice.payment_failed
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                duplicate · not counted
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                usage recorded · +25
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#9DB8F5" }}>evt</b>
-                invoice.paid
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                usage recorded · +10
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#D4F7A1" }}>plan</b>
-                acme → business
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#F2C66D" }}>429</b>
-                PLAN_LIMIT_USAGE
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#9DB8F5" }}>evt</b>
-                customer.subscription.updated
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                usage recorded · +40
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#D4F7A1" }}>mrr</b>
-                snapshot saved · $2,376
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#F49AA9" }}>evt</b>
-                invoice.payment_failed
-              </span>
-              <span className="cta-ev">
-                <b style={{ color: "#5FD3B5" }}>202</b>
-                duplicate · not counted
-              </span>
-            </div>
+            ))}
           </div>
         </div>
-      </section>
-    </>
+
+        {/* Event ticker: the list is doubled so the loop is seamless */}
+        <div
+          aria-hidden
+          className="group/ticker relative overflow-hidden border-t border-night-line bg-black/25 mask-[linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
+        >
+          <div className="flex w-max gap-2.5 px-2.5 py-3.5 motion-safe:animate-marquee motion-safe:group-hover/ticker:paused">
+            {[...EVENTS, ...EVENTS].map((e, i) => (
+              <span
+                key={i}
+                className="inline-flex h-7.5 items-center gap-2 rounded-full border border-night-line-2 bg-[#0f191c] px-3 font-mono text-[12px] whitespace-nowrap text-mist"
+              >
+                <b className={cn("font-semibold", e.color)}>{e.tag}</b>
+                {e.text}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

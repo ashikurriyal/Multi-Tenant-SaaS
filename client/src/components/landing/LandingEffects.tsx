@@ -2,25 +2,26 @@
 
 import { useEffect } from "react";
 
-// State is kept in data-* attributes (data-rvjs, data-in, data-io, data-inview, data-off), never
-// in className: React rewrites className whenever a component re-renders with a new one, which
-// would silently undo a reveal (the FAQ panel vanished that way).
+// State is kept in data-* attributes (data-reveal, data-intro, data-off), never in
+// className: React rewrites className whenever a component re-renders with a new one, which
+// would silently undo a reveal (the FAQ panel vanished that way). The components style those
+// states with Tailwind data variants, e.g. data-[reveal=in]:animate-reveal (see ui.ts).
 //
 // Page-wide behaviour for the landing page, all skipped for visitors who prefer reduced
 // motion: reveal-on-enter for .rv blocks, one-time intros for [data-lf-io] sections and the
 // revenue chart, pausing the hero while it is off screen, and the spotlight leaning toward
 // the cursor. Scrolling itself is left to the browser: it runs off the main thread, so the
 // hero's animations can never make it stutter. Anchor links glide with CSS scroll-behavior
-// and the progress line is a CSS scroll-driven animation (landing.css).
+// and the progress line is a CSS scroll-driven animation (scroll-progress).
 export default function LandingEffects() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const root = document.querySelector<HTMLElement>(".lf");
+    const root = document.querySelector<HTMLElement>("[data-landing]");
     if (!root) return;
     const cleanups: (() => void)[] = [];
 
-    // Reveal: elements entering together are staggered top-to-bottom, left-to-right
-    root.dataset.rvjs = "";
+    // Reveal: hidden until in view; elements entering together are staggered top-to-bottom,
+    // left-to-right
     const reveal = new IntersectionObserver(
       (entries) => {
         entries
@@ -32,13 +33,16 @@ export default function LandingEffects() {
           })
           .forEach((el, i) => {
             el.style.animationDelay = `${Math.min(i, 6) * 70}ms`;
-            el.dataset.in = "";
+            el.dataset.reveal = "in";
             reveal.unobserve(el);
           });
       },
       { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
     );
-    root.querySelectorAll(".rv").forEach((el) => reveal.observe(el));
+    root.querySelectorAll<HTMLElement>(".rv").forEach((el) => {
+      el.dataset.reveal = "pending";
+      reveal.observe(el);
+    });
     cleanups.push(() => reveal.disconnect());
 
     // Intros that play once, fully, when their section is in view
@@ -46,19 +50,19 @@ export default function LandingEffects() {
       (entries) => {
         for (const en of entries) {
           if (!en.isIntersecting) continue;
-          (en.target as HTMLElement).dataset.inview = "";
+          (en.target as HTMLElement).dataset.intro = "play";
           intro.unobserve(en.target);
         }
       },
       { threshold: 0.25 },
     );
     root.querySelectorAll('[data-lf="revfig"], [data-lf-io]').forEach((el) => {
-      (el as HTMLElement).dataset.io = "";
+      (el as HTMLElement).dataset.intro = "pending";
       intro.observe(el);
     });
     cleanups.push(() => intro.disconnect());
 
-    // The hero's animations pause while it is off screen (#top[data-off] in landing.css)
+    // The hero's animations pause while it is off screen (pause-when-off in styles/landing.css)
     const hero = document.getElementById("top");
     if (hero) {
       const heroSeen = new IntersectionObserver(([en]) =>
@@ -97,7 +101,7 @@ export default function LandingEffects() {
 
     return () => {
       cleanups.forEach((fn) => fn());
-      delete root.dataset.rvjs;
+      root.querySelectorAll<HTMLElement>("[data-reveal]").forEach((el) => delete el.dataset.reveal);
     };
   }, []);
 

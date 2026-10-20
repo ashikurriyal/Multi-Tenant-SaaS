@@ -2,7 +2,11 @@
 
 type Props = { size?: number; className?: string };
 
-export function ArrowIcon({ size = 15, className = "btn-arrow" }: Props) {
+// Nudges right when its parent (marked with `group`) is hovered
+export function ArrowIcon({
+  size = 15,
+  className = "transition-transform duration-250 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-1",
+}: Props) {
   return (
     <svg
       className={className}
