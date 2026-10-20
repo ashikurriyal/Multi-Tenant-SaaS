@@ -35,10 +35,12 @@ export default function ButtonLink({
       {...props}
     >
       {variant === "primary" && (
+        // Resting offset is set on transform, the same property the shine animates: a
+        // translate-x class would add to it and leave the band parked over the button
         <span
           aria-hidden
           className={cn(
-            "bg-shine pointer-events-none absolute inset-0 -z-10 translate-x-[-120%]",
+            "bg-shine pointer-events-none absolute inset-0 -z-10 [transform:translateX(-120%)]",
             shine ? "motion-safe:animate-shine-loop" : "motion-safe:group-hover:animate-shine",
           )}
         />

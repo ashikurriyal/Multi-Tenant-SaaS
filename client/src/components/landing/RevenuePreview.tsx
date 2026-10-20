@@ -48,8 +48,10 @@ export default function RevenuePreview() {
             {[0, 1, 2].map((i) => (
               <i key={i} className="size-2.5 rounded-full bg-[#e2e8e6]" />
             ))}
-            <span className="ml-2.5 inline-flex h-6 items-center rounded-[7px] border border-line bg-white px-2.5 font-mono text-[11px] text-subtle">
-              ledgerflow-web-portal.vercel.app/admin?months={range}
+            <span className="ml-2.5 inline-flex h-6 min-w-0 items-center rounded-[7px] border border-line bg-white px-2.5 font-mono text-[11px] text-subtle">
+              <span className="truncate">
+                ledgerflow-web-portal.vercel.app/admin?months={range}
+              </span>
             </span>
           </div>
           <div className="flex flex-col gap-4 px-5.5 pt-5.5 pb-5">
