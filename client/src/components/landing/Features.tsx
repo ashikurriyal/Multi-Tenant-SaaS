@@ -144,8 +144,8 @@ export default function Features() {
                 {f.title}
               </h3>
               <p className="text-[15.5px] leading-[1.55] text-body">{f.text}</p>
-              <span className="mt-auto flex items-center gap-2 border-t border-dashed border-frame pt-4 font-mono text-[12.5px] text-[#3f4b52] transition-colors duration-250 group-hover:text-brand-deep">
-                <span aria-hidden className="size-1.5 flex-none rounded-full bg-primary" />
+              <span className="mt-auto flex items-start gap-2 border-t border-dashed border-frame pt-4 font-mono text-[12.5px] text-[#3f4b52] transition-colors duration-250 group-hover:text-brand-deep">
+                <span aria-hidden className="mt-1.5 size-1.5 flex-none rounded-full bg-primary" />
                 {f.proof}
               </span>
             </article>

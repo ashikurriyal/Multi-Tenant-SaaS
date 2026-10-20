@@ -117,7 +117,9 @@ export default function Navbar() {
             href="/login"
             className="box-border min-h-10 gap-1.5 rounded-[10px] px-3.5 text-[14px] font-medium whitespace-nowrap max-[420px]:px-3 max-[420px]:text-[13px]"
           >
-            Try the live demo
+            {/* Phones get the short label so the brand, button and menu fit on one row */}
+            <span className="max-[400px]:hidden">Try the live demo</span>
+            <span className="min-[401px]:hidden">Live demo</span>
             <ArrowIcon size={14} />
           </ButtonLink>
           <button

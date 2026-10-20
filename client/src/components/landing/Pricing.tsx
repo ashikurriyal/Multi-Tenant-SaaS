@@ -145,11 +145,15 @@ export default function Pricing() {
             Monthly plans with included units. Paid plans keep working past the included amount and
             bill the extra through Stripe.
           </p>
-          <span className="mt-1 inline-flex h-8 items-center gap-2 rounded-full border border-line bg-white px-3 text-[13.5px] text-ink-soft">
+          <span className="mt-1 inline-flex min-h-8 flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-[16px] border border-line bg-white px-3 py-1 text-[13.5px] whitespace-nowrap text-ink-soft">
             <span className="rounded-[5px] bg-[#FEF3C7] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[#8A3F06]">
               TEST MODE
             </span>
-            Pay with card <span className="font-mono">4242 4242 4242 4242</span>
+            <span>
+              <span className="max-[420px]:hidden">Pay with card</span>
+              <span className="min-[421px]:hidden">Test card</span>
+            </span>
+            <span className="font-mono">4242 4242 4242 4242</span>
           </span>
         </div>
 
