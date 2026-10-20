@@ -1,0 +1,749 @@
+/* Landing page design tokens, animations and the few utilities that plain Tailwind classes
+   can't express (layered gradients, masks). Imported by app/globals.css so Tailwind generates
+   classes for them: text-ink, border-line, bg-surface, animate-float, bg-spotlight-beam, … */
+
+@theme {
+  /* Neutrals */
+  --color-ink: #0b1215;
+  --color-ink-soft: #2f3b42;
+  --color-body: #46535a;
+  --color-subtle: #5b676e;
+  --color-faint: #7d8b87;
+  --color-line: #e3e8e6;
+  --color-line-soft: #eef2f1;
+  --color-line-strong: #d4dcda;
+  --color-frame: #dce3e1;
+  --color-divider: #e8edeb;
+  --color-surface: #f7f9f8;
+
+  /* Brand accents (the brand teal itself is the theme's `primary`) */
+  --color-brand-deep: #0a6152;
+  --color-mint: #5fd3b5;
+  --color-lime: #d4f7a1;
+  --color-gold: #f2c66d;
+  --color-sky: #9db8f5;
+
+  /* Dark surfaces: code windows, the proof section, the final call to action */
+  --color-sage: #8fa19c;
+  --color-moss: #6f827d;
+  --color-code: #d7e2df;
+  --color-mist: #a9b8b4;
+  --color-fog: #c5d1cd;
+  --color-cloud: #e6eeec;
+  --color-night-line: #1c2a2f;
+  --color-night-line-2: #1f2e33;
+}
+
+/* Animations: use as animate-<name>, usually behind motion-safe: */
+@theme {
+  --animate-sweep: lf-sweep 6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  --animate-breathe: lf-breathe 6s ease-in-out infinite;
+  --animate-ping-soft: lf-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes lf-sweep {
+  to {
+    left: calc(100% + 20px);
+  }
+}
+@keyframes lf-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes lf-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* Footer: the dotted backdrop, the glowing top edge and the light that sweeps along it */
+@utility bg-footer {
+  background:
+    radial-gradient(rgba(11, 18, 21, 0.07) 1px, transparent 1.2px) 0 0 / 14px 14px,
+    #fafbfb;
+}
+@utility bg-footer-glow {
+  background: radial-gradient(
+    50% 100% at 50% 0%,
+    color-mix(in srgb, var(--color-primary) 14%, transparent),
+    transparent 75%
+  );
+}
+@utility bg-footer-edge {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-primary) 35%, var(--color-line)) 12%,
+    var(--color-primary) 50%,
+    color-mix(in srgb, var(--color-primary) 35%, var(--color-line)) 88%,
+    transparent 100%
+  );
+}
+@utility bg-footer-comet {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-mint) 40%,
+    var(--color-lime) 55%,
+    #fff 62%,
+    transparent
+  );
+  box-shadow:
+    0 0 12px 2px rgba(95, 211, 181, 0.75),
+    0 0 28px 6px rgba(95, 211, 181, 0.35);
+}
+@utility bg-footer-haze {
+  background: radial-gradient(50% 100% at 60% 0%, rgba(95, 211, 181, 0.32), transparent 70%);
+}
+
+/* Shared: button shine, entrance and reveal, the spinning glow around framed windows */
+@theme {
+  --animate-shine: lf-shine 0.9s ease-out;
+  --animate-shine-loop: lf-shine 4.5s ease-in-out 1.6s infinite;
+  --animate-enter: lf-enter 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-reveal: lf-reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-ring-spin: lf-ring-spin 9s linear infinite;
+}
+@keyframes lf-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  22%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+@keyframes lf-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes lf-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.985);
+    filter: blur(6px);
+  }
+  60% {
+    filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+/* Rotates only: the ring is centred with Tailwind's translate utilities */
+@keyframes lf-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@utility bg-shine {
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 70%
+  );
+}
+@utility bg-glow-ring {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--color-primary) 60deg,
+    transparent 140deg,
+    transparent 220deg,
+    color-mix(in srgb, var(--color-primary) 60%, #2f5bea) 290deg,
+    transparent 360deg
+  );
+}
+
+/* Intros that play once a section scrolls into view (data-intro="play", see LandingEffects) */
+@theme {
+  --animate-fill: lf-fill 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) 0.25s both;
+  --animate-slide-in: lf-slide-in 0.35s ease both;
+  --animate-pop-in: lf-pop-in 0.3s ease both;
+  --animate-blink: lf-blink 1.6s ease-in-out 1s infinite;
+}
+@keyframes lf-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes lf-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+@keyframes lf-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+@keyframes lf-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Final call to action: drifting glows, a floating card stack and an event ticker */
+@theme {
+  --animate-marquee: lf-marquee 38s linear infinite;
+  --animate-aurora: lf-aurora 16s ease-in-out infinite alternate;
+}
+@keyframes lf-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+/* Moves the `translate` property only, so it combines with an element's own transform */
+@keyframes lf-float {
+  50% {
+    translate: 0 -8px;
+  }
+}
+@keyframes lf-aurora {
+  50% {
+    transform: translate(-60px, 40px) scale(1.12);
+  }
+  100% {
+    transform: translate(20px, -20px) scale(0.95);
+  }
+}
+@utility bg-grid-faint {
+  background:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 44px 44px;
+}
+
+/* "Built to be correct": dark section backdrop, card borders and the webhook timeline */
+@theme {
+  --animate-node: lf-node 6s ease-in-out infinite;
+}
+@keyframes lf-node {
+  0%,
+  8% {
+    border-color: #2c4047;
+    background: #0d171a;
+    box-shadow: none;
+  }
+  14%,
+  30% {
+    border-color: var(--color-mint);
+    background: var(--color-mint);
+    box-shadow: 0 0 0 4px rgba(95, 211, 181, 0.18);
+  }
+  45%,
+  100% {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: none;
+  }
+}
+@utility bg-proof {
+  background:
+    radial-gradient(
+      600px 340px at 85% 0%,
+      color-mix(in srgb, var(--color-primary) 30%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(500px 300px at 0% 100%, rgba(45, 212, 191, 0.12), transparent 70%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px) 0 0 / 48px 48px;
+}
+/* A 1px gradient border (teal top-left to aqua bottom-right) around a dark fill */
+@utility bg-proof-card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #111d21, #0d171a) padding-box,
+    linear-gradient(
+        150deg,
+        color-mix(in srgb, var(--color-primary) 60%, transparent) 0%,
+        #1f2e33 35%,
+        #1f2e33 70%,
+        rgba(153, 246, 228, 0.28) 100%
+      )
+      border-box;
+}
+
+/* Pricing estimator slider: the filled track follows --p (set inline) */
+@utility range-brand {
+  appearance: none;
+  background: linear-gradient(90deg, var(--color-primary) 0 var(--p), #e6ecea var(--p) 100%);
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #fff;
+    border: 2px solid var(--color-primary);
+    box-shadow:
+      0 0 0 5px color-mix(in srgb, var(--color-primary) 16%, transparent),
+      0 4px 10px -2px rgba(11, 18, 21, 0.3);
+    transition: transform 0.15s ease;
+  }
+  &:active::-webkit-slider-thumb {
+    transform: scale(1.12);
+  }
+  &::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #fff;
+    border: 2px solid var(--color-primary);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-primary) 16%, transparent);
+  }
+}
+/* The featured plan's 1px gradient border */
+@utility bg-plan-featured {
+  border-color: transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(
+        160deg,
+        var(--color-primary),
+        color-mix(in srgb, var(--color-primary) 30%, var(--color-line)) 45%,
+        color-mix(in srgb, var(--color-primary) 70%, var(--color-mint))
+      )
+      border-box;
+}
+
+/* FAQ explorer: answers rise in, the plan-change stepper lights up node by node */
+@theme {
+  --animate-rise: lf-rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-node-light: lf-node-light 5s ease-in-out infinite;
+}
+@keyframes lf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes lf-node-light {
+  0%,
+  6% {
+    border-color: #c9d3d0;
+    background: #fff;
+    box-shadow: none;
+  }
+  12%,
+  26% {
+    border-color: var(--color-primary);
+    background: var(--color-mint);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+  36%,
+  100% {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: none;
+  }
+}
+
+/* Feature icons: each one moves on hover in a way that matches its meaning */
+@theme {
+  --animate-nudge: lf-nudge 0.6s ease-in-out;
+  --animate-grow-bar: lf-grow-bar 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-tilt: lf-tilt 0.7s ease-in-out;
+  --animate-draw: lf-draw 0.7s ease-out both;
+  --animate-turn: lf-turn 0.75s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes lf-nudge {
+  40% {
+    transform: translateX(2.5px);
+  }
+  70% {
+    transform: translateX(-1px);
+  }
+}
+@keyframes lf-grow-bar {
+  0% {
+    transform: scaleY(0.25);
+  }
+  60% {
+    transform: scaleY(1.08);
+  }
+}
+@keyframes lf-tilt {
+  40% {
+    transform: rotate(-10deg) translateY(-1px);
+  }
+  70% {
+    transform: rotate(4deg);
+  }
+}
+/* For paths with pathLength="1" and stroke-dasharray: 1 */
+@keyframes lf-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes lf-turn {
+  45% {
+    transform: rotate(28deg);
+  }
+  75% {
+    transform: rotate(-6deg);
+  }
+}
+/* The feature cards' 1px border, tinted teal at the top-left corner */
+@utility bg-feature-card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(
+        150deg,
+        color-mix(in srgb, var(--color-primary) 38%, var(--color-line)) 0%,
+        var(--color-line) 30%,
+        var(--color-line) 100%
+      )
+      border-box;
+}
+
+/* "How it works" cards: a 1px border that fades from teal (top-left) to grey */
+@utility bg-step-card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #fff, #fbfcfc) padding-box,
+    linear-gradient(
+        160deg,
+        color-mix(in srgb, var(--color-primary) 55%, #fff) 0%,
+        var(--color-frame) 38%,
+        var(--color-frame) 70%,
+        color-mix(in srgb, var(--color-primary) 30%, var(--color-frame)) 100%
+      )
+      border-box;
+}
+
+/* Revenue preview: the line draws, the area and dots fade in, the bars grow from zero */
+@keyframes lf-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes lf-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes lf-dot-pulse {
+  50% {
+    stroke-width: 6;
+  }
+}
+
+/* Developers window: a new tab's code or a new response slides in */
+@theme {
+  --animate-swap: lf-swap 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes lf-swap {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Navbar: a thin line along the top that fills as the page scrolls (scroll-driven, so it
+   never runs on the main thread); browsers without scroll timelines just don't show it */
+@utility scroll-progress {
+  display: none;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  @supports (animation-timeline: scroll()) {
+    display: block;
+    animation: lf-progress linear both;
+    animation-timeline: scroll(root);
+  }
+}
+@keyframes lf-progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+@theme {
+  --animate-drop: lf-drop 0.25s ease both;
+}
+@keyframes lf-drop {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* Hero spotlight: the beam, its rays and grid (clipped to the cone), two side beams and the
+   lamp along the top edge. LandingEffects sets --tilt to lean it toward the cursor */
+@utility bg-spot-beam {
+  background:
+    conic-gradient(
+      from 0deg at 50% 0%,
+      transparent 162deg,
+      rgba(255, 255, 255, 0.72) 173deg,
+      rgba(212, 247, 161, 0.5) 180deg,
+      rgba(255, 255, 255, 0.72) 187deg,
+      transparent 198deg
+    ),
+    conic-gradient(
+      from 0deg at 50% 0%,
+      transparent 124deg,
+      color-mix(in srgb, var(--color-primary) 16%, transparent) 140deg,
+      color-mix(in srgb, var(--color-primary) 32%, transparent) 158deg,
+      rgba(95, 211, 181, 0.48) 180deg,
+      color-mix(in srgb, var(--color-primary) 32%, transparent) 202deg,
+      color-mix(in srgb, var(--color-primary) 16%, transparent) 220deg,
+      transparent 236deg
+    );
+  mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 92%);
+}
+@utility mask-spot-cone {
+  mask-image: conic-gradient(
+    from 0deg at 50% 0%,
+    transparent 126deg,
+    #000 146deg,
+    #000 214deg,
+    transparent 234deg
+  );
+}
+@utility bg-spot-rays {
+  background: repeating-conic-gradient(
+    from 0deg at 50% 0%,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.55) 0.7deg,
+    rgba(95, 211, 181, 0.28) 1.4deg,
+    transparent 2.4deg,
+    transparent 4.2deg
+  );
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.6) 40%, transparent 80%);
+}
+@utility bg-spot-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--color-primary) 28%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-primary) 28%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 44px 44px;
+  background-position: 50% 0;
+  mask-image: linear-gradient(
+    180deg,
+    transparent 8%,
+    #000 30%,
+    rgba(0, 0, 0, 0.5) 60%,
+    transparent 85%
+  );
+}
+@utility bg-spot-side-left {
+  background: conic-gradient(
+    from 0deg at 23.6% 0%,
+    transparent 118deg,
+    rgba(153, 246, 228, 0.42) 132deg,
+    transparent 146deg
+  );
+  mask-image: linear-gradient(180deg, #000 0%, transparent 80%);
+}
+@utility bg-spot-side-right {
+  background: conic-gradient(
+    from 0deg at 76.4% 0%,
+    transparent 214deg,
+    rgba(212, 247, 161, 0.46) 228deg,
+    transparent 242deg
+  );
+  mask-image: linear-gradient(180deg, #000 0%, transparent 80%);
+}
+@utility bg-spot-flare {
+  background: radial-gradient(
+    closest-side,
+    rgba(95, 211, 181, 0.85),
+    rgba(95, 211, 181, 0.25) 60%,
+    transparent
+  );
+}
+@utility bg-spot-lamp {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #5fd3b5 25%,
+    #ffffff 50%,
+    #5fd3b5 75%,
+    transparent
+  );
+  box-shadow:
+    0 0 18px 4px rgba(95, 211, 181, 0.6),
+    0 0 70px 22px color-mix(in srgb, var(--color-primary) 26%, transparent);
+}
+@utility bg-spot-pool {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--color-primary) 30%, transparent),
+    transparent
+  );
+}
+/* The hero's animations pause while it is off screen (LandingEffects sets data-off) */
+@utility pause-when-off {
+  &[data-off] *,
+  &[data-off] *::before,
+  &[data-off] *::after {
+    animation-play-state: paused !important;
+  }
+}
+@theme {
+  --animate-spot-aim: lf-sway 12s ease-in-out infinite, lf-breath 7s ease-in-out infinite;
+  --animate-spot-left: lf-swayl 15s ease-in-out infinite;
+  --animate-spot-right: lf-swayr 17s ease-in-out infinite;
+  --animate-spot-flare: lf-flare 5s ease-in-out infinite;
+  --animate-spot-breath: lf-breath 5s ease-in-out infinite;
+  --animate-mote: lf-mote 10s ease-in-out infinite both;
+}
+@keyframes lf-sway {
+  0%,
+  100% {
+    transform: rotate(-2.2deg) scaleX(1);
+  }
+  50% {
+    transform: rotate(2.2deg) scaleX(1.05);
+  }
+}
+@keyframes lf-swayl {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+@keyframes lf-swayr {
+  0%,
+  100% {
+    transform: rotate(4deg);
+  }
+  50% {
+    transform: rotate(-5deg);
+  }
+}
+@keyframes lf-flare {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scaleX(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1.05);
+  }
+}
+@keyframes lf-breath {
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes lf-mote {
+  0% {
+    opacity: 0;
+    translate: 0 30px;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -120px;
+  }
+}
+
+/* Hero walkthrough: scenes, dialogs and the toast enter; the cursor's click ripples; the
+   card form types with a blinking caret and a spinner while it "pays" */
+@theme {
+  --animate-scene: lf-scene 0.4s ease both;
+  --animate-pop: lf-pop 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-fade: lf-fade 0.3s ease both;
+  --animate-toast: lf-toast 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-caret: lf-caret 1s steps(1) infinite;
+  --animate-click: lf-click 0.5s ease-out both;
+  --animate-spin-fast: lf-rot 0.7s linear infinite;
+  --animate-live: lf-live 1.4s ease-in-out infinite;
+}
+@keyframes lf-scene {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+}
+@keyframes lf-pop {
+  from {
+    opacity: 0;
+    transform: translateY(0.6em) scale(0.98);
+  }
+}
+@keyframes lf-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes lf-toast {
+  from {
+    opacity: 0;
+    transform: translateY(1em);
+  }
+}
+@keyframes lf-caret {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes lf-click {
+  from {
+    opacity: 0.9;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+@keyframes lf-live {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes lf-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Anchor links glide natively (off the main thread); sections land below the fixed navbar
+   through scroll-mt on the page wrapper */
+@media (prefers-reduced-motion: no-preference) {
+  html:has([data-landing]) {
+    scroll-behavior: smooth;
+  }
+}
