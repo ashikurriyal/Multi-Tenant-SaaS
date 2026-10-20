@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import ButtonLink from "./ButtonLink";
+import CardStack from "./CardStack";
 import LiveDot from "./LiveDot";
 import { reveal } from "./ui";
 
@@ -8,40 +9,6 @@ import { reveal } from "./ui";
 // event ticker
 
 const STEPS = ["Pick an account", "Explore billing and usage", "Upgrade with 4242…"];
-
-// Back to front. Each card's resting and hover positions, and how long its float takes.
-const STACK = [
-  {
-    initials: "IN",
-    avatar: "bg-ink-soft",
-    org: "Initech",
-    pill: { label: "Free · 95%", className: "bg-line-soft text-[#3F4B52]" },
-    meter: { label: "Usage", value: "950 / 1,000", pct: 95, color: "#C0352B" },
-    place:
-      "opacity-85 [transform:translate(28px,-112px)_rotate(7deg)_scale(0.92)] group-hover/stack:[transform:translate(70px,-150px)_rotate(9deg)_scale(0.94)]",
-    float: "motion-safe:[animation:lf-float_8s_ease-in-out_1.6s_infinite]",
-  },
-  {
-    initials: "GL",
-    avatar: "bg-[#7A2E1E]",
-    org: "Globex",
-    pill: { label: "Past due", className: "bg-[#FCEDE8] text-[#A33A1E]" },
-    meter: { label: "Grace period", value: "7 days", pct: 14, color: "#E0533F" },
-    place:
-      "opacity-93 [transform:translate(-26px,-70px)_rotate(-5deg)_scale(0.96)] group-hover/stack:[transform:translate(-70px,-82px)_rotate(-8deg)_scale(0.97)]",
-    float: "motion-safe:[animation:lf-float_7s_ease-in-out_0.8s_infinite]",
-  },
-  {
-    initials: "AC",
-    avatar: "bg-ink",
-    org: "Acme Corp",
-    pill: { label: "Pro · active", className: "bg-primary/10 text-brand-deep" },
-    meter: { label: "Usage", value: "81%", pct: 81, color: "#C27C0E" },
-    place:
-      "[transform:translate(0,-10px)_rotate(1deg)] group-hover/stack:[transform:translate(14px,18px)_rotate(2deg)_scale(1.02)]",
-    float: "motion-safe:[animation:lf-float_6s_ease-in-out_infinite]",
-  },
-];
 
 const EVENTS = [
   { tag: "202", color: "text-mint", text: "usage recorded · +25" },
@@ -123,58 +90,7 @@ export default function FinalCta() {
             </ol>
           </div>
 
-          <div
-            aria-hidden
-            className="group/stack relative h-75 max-[900px]:mx-auto max-[900px]:h-65 max-[900px]:w-full max-[900px]:max-w-105"
-          >
-            {STACK.map((c) => (
-              <div
-                key={c.org}
-                className={cn(
-                  "absolute top-1/2 left-1/2 -ml-37.5 flex w-75 flex-col gap-2.5 rounded-[16px] border border-line bg-white p-4 text-ink shadow-[0_24px_50px_-24px_rgba(0,0,0,0.7)] transition-transform duration-550 ease-[cubic-bezier(0.3,1.2,0.4,1)]",
-                  c.place,
-                  c.float,
-                )}
-              >
-                <div className="flex items-center justify-between gap-2.5">
-                  <span className="inline-flex items-center gap-2.5">
-                    <span
-                      className={cn(
-                        "inline-flex size-8 items-center justify-center rounded-[9px] text-[12px] font-semibold text-white",
-                        c.avatar,
-                      )}
-                    >
-                      {c.initials}
-                    </span>
-                    <span className="flex flex-col gap-0.75">
-                      <span className="text-[14px] leading-none font-semibold">{c.org}</span>
-                      <span className="text-[11.5px] leading-none text-subtle">Owner</span>
-                    </span>
-                  </span>
-                  <span
-                    className={cn(
-                      "rounded-full px-2.25 py-0.75 text-[11.5px] font-semibold",
-                      c.pill.className,
-                    )}
-                  >
-                    {c.pill.label}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[11.5px] text-subtle">
-                  <span>{c.meter.label}</span>
-                  <span className="font-semibold" style={{ color: c.meter.color }}>
-                    {c.meter.value}
-                  </span>
-                </div>
-                <span className="block h-1.5 overflow-hidden rounded-full bg-[#E6ECEA]">
-                  <span
-                    className="block h-full rounded-full"
-                    style={{ width: `${c.meter.pct}%`, background: c.meter.color }}
-                  />
-                </span>
-              </div>
-            ))}
-          </div>
+          <CardStack />
         </div>
 
         {/* Event ticker: the list is doubled so the loop is seamless */}

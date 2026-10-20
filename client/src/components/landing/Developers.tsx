@@ -177,7 +177,7 @@ export default function Developers() {
             <div className="overflow-hidden rounded-[16px] border border-night-line bg-ink shadow-[0_30px_70px_-30px_rgba(11,18,21,0.55)]">
               <div className="flex items-center justify-between gap-3 border-b border-night-line bg-[#0F181B] py-2.5 pr-3 pl-4">
                 <div className="flex min-w-0 items-center gap-3.5">
-                  <span aria-hidden className="inline-flex gap-1.5">
+                  <span aria-hidden className="inline-flex gap-1.5 max-[420px]:hidden">
                     {[0, 1, 2].map((i) => (
                       <i key={i} className="size-2.5 rounded-full bg-[#253338]" />
                     ))}
@@ -213,7 +213,8 @@ export default function Developers() {
                 <button
                   type="button"
                   onClick={copyRequest}
-                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-[8px] border border-[#24343a] px-2.75 text-[12.5px] text-fog transition-colors duration-200 hover:border-[#2f4248] hover:bg-[#152125] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mint"
+                  aria-label={copied ? "Copied" : "Copy request"}
+                  className="inline-flex h-7.5 flex-none cursor-pointer items-center gap-1.5 rounded-[8px] border border-[#24343a] px-2.75 text-[12.5px] text-fog transition-colors duration-200 hover:border-[#2f4248] hover:bg-[#152125] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mint"
                 >
                   <svg
                     width="14"
@@ -228,7 +229,7 @@ export default function Developers() {
                   >
                     <path d={copied ? "M20 6L9 17l-5-5" : "M9 9h10v10H9zM5 15V5h10"} />
                   </svg>
-                  {copied ? "Copied" : "Copy"}
+                  <span className="max-[420px]:hidden">{copied ? "Copied" : "Copy"}</span>
                 </button>
               </div>
               <div className="min-h-75 px-5.5 py-5">

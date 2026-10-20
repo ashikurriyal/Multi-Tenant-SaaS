@@ -166,7 +166,7 @@ function Pill({ children, className }: { children: React.ReactNode; className?: 
   return (
     <span
       className={cn(
-        "inline-flex min-h-7 items-center gap-1.5 rounded-[8px] border border-line-soft bg-surface px-2.5 py-1 font-mono text-[11.5px] text-ink-soft",
+        "inline-flex min-h-7 flex-wrap items-center gap-x-1.5 rounded-[8px] border border-line-soft bg-surface px-2.5 py-1 font-mono text-[11.5px] text-ink-soft",
         className,
       )}
     >
