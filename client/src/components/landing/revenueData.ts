@@ -33,8 +33,8 @@ export const SERIES: { key: SeriesKey; label: string; color: string; light: stri
   {
     key: "new",
     label: "New",
-    color: "var(--lf-accent)",
-    light: "color-mix(in srgb, var(--lf-accent) 62%, #FFFFFF)",
+    color: "var(--color-primary)",
+    light: "color-mix(in srgb, var(--color-primary) 62%, #FFFFFF)",
   },
   { key: "exp", label: "Expansion", color: "#4F6BED", light: "#8EA2F7" },
   { key: "react", label: "Reactivation", color: "#9479E8", light: "#C3B4F4" },

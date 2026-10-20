@@ -1,264 +1,137 @@
-import Link from "next/link";
+import { cn } from "@/lib/utils";
+import ButtonLink from "./ButtonLink";
 import HeroWalkthrough from "./HeroWalkthrough";
+import LiveDot from "./LiveDot";
 
 // The hero: a spotlight beam over the headline and the scripted product walkthrough
+
+// Drifting specks of light inside the beam: [left, top, delay, duration]
+const MOTES: [string, string, string, string][] = [
+  ["left-[46%]", "top-55", "0s", "9s"],
+  ["left-[53%]", "top-75", "2.5s", "11s"],
+  ["left-[49%]", "top-105", "1.2s", "10s"],
+  ["left-[56%]", "top-45", "4s", "12s"],
+  ["left-[44%]", "top-90", "5.5s", "9.5s"],
+  ["left-[51%]", "top-125", "3.2s", "13s"],
+  ["left-[58%]", "top-100", "6.5s", "10.5s"],
+  ["left-[41%]", "top-70", "7.5s", "11.5s"],
+  ["left-[61%]", "top-62.5", "1.8s", "12.5s"],
+];
+
+// The headline block fades up line by line on load
+const enter = "motion-safe:animate-enter";
+const DELAY = {
+  d1: "motion-safe:[animation-delay:80ms]",
+  d2: "motion-safe:[animation-delay:180ms]",
+  d3: "motion-safe:[animation-delay:300ms]",
+  d4: "motion-safe:[animation-delay:450ms]",
+};
+
 export default function Hero() {
   return (
-    <>
-      <section
-        id="top"
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          isolation: "isolate",
-          background:
-            "radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--lf-accent) 6%, #FFFFFF), #FFFFFF 70%)",
-        }}
-      >
-        <div
-          data-lf="navsentinel"
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: "0",
-            left: "0",
-            width: "1px",
-            height: "48px",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          className="hero-bg"
-          data-lf="herobg"
-          aria-hidden="true"
-          style={{ position: "absolute", inset: "0", zIndex: "0", pointerEvents: "none" }}
+    <section
+      id="top"
+      className="pause-when-off relative isolate overflow-hidden bg-[radial-gradient(1200px_600px_at_50%_-10%,color-mix(in_srgb,var(--color-primary)_6%,#FFFFFF),#FFFFFF_70%)]"
+    >
+      {/* The navbar turns into a floating pill once this marker scrolls out of view */}
+      <div
+        data-lf="navsentinel"
+        aria-hidden
+        className="pointer-events-none absolute top-0 left-0 h-12 w-px"
+      />
+      <Spotlight />
+      <div className="relative z-1 mx-auto flex max-w-300 flex-col items-center gap-6 px-6 pt-33 pb-10 text-center">
+        <p
+          className={cn(
+            enter,
+            DELAY.d1,
+            "inline-flex items-center gap-2 rounded-full border border-frame bg-white px-3.5 py-1.5 text-[14px] text-ink-soft",
+          )}
         >
-          <div className="sp-side sl" />
-          <div className="sp-side sr" />
-          <div className="sp-aim">
-            <div className="sp-beam" />
-            <div className="sp-cone">
-              <div className="sp-rays" />
-              <div className="sp-grid" />
-            </div>
-          </div>
-          <div className="sp-flare" />
-          <div className="sp-lamp" />
-          <div className="sp-motes">
-            <i
-              style={{ left: "46%", top: "220px", animationDelay: "0s", animationDuration: "9s" }}
-            />
-            <i
-              style={{
-                left: "53%",
-                top: "300px",
-                animationDelay: "2.5s",
-                animationDuration: "11s",
-              }}
-            />
-            <i
-              style={{
-                left: "49%",
-                top: "420px",
-                animationDelay: "1.2s",
-                animationDuration: "10s",
-              }}
-            />
-            <i
-              style={{ left: "56%", top: "180px", animationDelay: "4s", animationDuration: "12s" }}
-            />
-            <i
-              style={{
-                left: "44%",
-                top: "360px",
-                animationDelay: "5.5s",
-                animationDuration: "9.5s",
-              }}
-            />
-            <i
-              style={{
-                left: "51%",
-                top: "500px",
-                animationDelay: "3.2s",
-                animationDuration: "13s",
-              }}
-            />
-            <i
-              style={{
-                left: "58%",
-                top: "400px",
-                animationDelay: "6.5s",
-                animationDuration: "10.5s",
-              }}
-            />
-            <i
-              style={{
-                left: "41%",
-                top: "280px",
-                animationDelay: "7.5s",
-                animationDuration: "11.5s",
-              }}
-            />
-            <i
-              style={{
-                left: "61%",
-                top: "250px",
-                animationDelay: "1.8s",
-                animationDuration: "12.5s",
-              }}
-            />
-          </div>
-          <div className="sp-pool" />
-        </div>
-        <div
-          style={{
-            position: "relative",
-            zIndex: "1",
-            maxWidth: "1200px",
-            margin: "0 auto",
-            padding: "132px 24px 40px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            textAlign: "center",
-            gap: "24px",
-          }}
+          <LiveDot /> Live demo on Stripe test mode · no card, no sign-up{" "}
+        </p>
+        <h1
+          className={cn(
+            enter,
+            DELAY.d2,
+            "max-w-235 text-[clamp(38px,5.2vw,68px)] leading-[1.04] font-[650] tracking-[-0.035em]",
+          )}
         >
-          <p
-            className="in d1"
-            style={{
-              margin: "0",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "14px",
-              color: "#2F3B42",
-              background: "#FFFFFF",
-              border: "1px solid #DCE3E1",
-              borderRadius: "999px",
-              padding: "6px 14px",
-            }}
+          Subscriptions, usage billing and revenue analytics for SaaS teams
+        </h1>
+        <p className={cn(enter, DELAY.d3, "max-w-170 text-[19px] leading-[1.55] text-body")}>
+          Multi-tenant workspaces on Stripe: plans with proration, metered usage with hard limits, a
+          grace period when payments fail, and an admin view of MRR, churn and NRR. Built to stay
+          correct under real concurrency.
+        </p>
+        <div className={cn(enter, DELAY.d4, "mt-1 flex flex-wrap justify-center gap-3")}>
+          <ButtonLink
+            href="/login"
+            shine
+            arrow
+            className="min-h-12 rounded-[12px] px-5.5 py-3.5 text-[16px] font-medium"
           >
-            <span
-              className="ping"
-              style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "999px",
-                background: "var(--lf-accent)",
-              }}
-            />{" "}
-            Live demo on Stripe test mode · no card, no sign-up{" "}
-          </p>
-          <h1
-            className="in d2"
-            style={{
-              margin: "0",
-              maxWidth: "940px",
-              fontSize: "clamp(38px, 5.2vw, 68px)",
-              lineHeight: "1.04",
-              letterSpacing: "-0.035em",
-              fontWeight: "650",
-            }}
+            Try the live demo{" "}
+          </ButtonLink>
+          <ButtonLink
+            href="/register"
+            variant="ghost"
+            className="min-h-12 rounded-[12px] px-5.5 py-3.5 text-[16px] font-medium"
           >
-            Subscriptions, usage billing and revenue analytics for SaaS teams
-          </h1>
-          <p
-            className="in d3"
-            style={{
-              margin: "0",
-              maxWidth: "680px",
-              fontSize: "19px",
-              lineHeight: "1.55",
-              color: "#46535A",
-            }}
-          >
-            Multi-tenant workspaces on Stripe: plans with proration, metered usage with hard limits,
-            a grace period when payments fail, and an admin view of MRR, churn and NRR. Built to
-            stay correct under real concurrency.
-          </p>
-          <div
-            className="in d4"
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              justifyContent: "center",
-              gap: "12px",
-              marginTop: "4px",
-            }}
-          >
-            <Link
-              className="btn-primary cta-shine"
-              href="/login"
-              style={{
-                fontSize: "16px",
-                fontWeight: "500",
-                textDecoration: "none",
-                color: "#FFFFFF",
-                background: "var(--lf-accent)",
-                padding: "14px 22px",
-                borderRadius: "12px",
-                minHeight: "48px",
-                boxSizing: "border-box",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              Try the live demo{" "}
-              <svg
-                className="btn-arrow"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </Link>
-            <Link
-              className="btn-ghost"
-              href="/register"
-              style={{
-                fontSize: "16px",
-                fontWeight: "500",
-                textDecoration: "none",
-                color: "#0B1215",
-                background: "#FFFFFF",
-                border: "1px solid #D4DCDA",
-                padding: "14px 22px",
-                borderRadius: "12px",
-                minHeight: "48px",
-                boxSizing: "border-box",
-                display: "inline-flex",
-                alignItems: "center",
-              }}
-            >
-              Create a free account
-            </Link>
-          </div>
-          <p className="in d4" style={{ margin: "0", fontSize: "14px", color: "#5B676E" }}>
-            Four one-click demo accounts: Pro, Billing user, Past due, Free near its limit
-          </p>
+            Create a free account
+          </ButtonLink>
         </div>
-        <div
-          className="in d4"
-          style={{
-            position: "relative",
-            zIndex: "1",
-            maxWidth: "1120px",
-            margin: "0 auto",
-            padding: "24px 24px 96px",
-          }}
-        >
-          <HeroWalkthrough />
+        <p className={cn(enter, DELAY.d4, "text-[14px] text-subtle")}>
+          Four one-click demo accounts: Pro, Billing user, Past due, Free near its limit
+        </p>
+      </div>
+      <div className={cn(enter, DELAY.d4, "relative z-1 mx-auto max-w-280 px-6 pt-6 pb-24")}>
+        <HeroWalkthrough />
+      </div>
+    </section>
+  );
+}
+
+// The light falling on the headline; it sways slowly and leans toward the cursor (--tilt)
+function Spotlight() {
+  const side = "absolute -top-15 h-225 w-275 blur-[30px] will-change-transform";
+  return (
+    <div data-lf="herobg" aria-hidden className="pointer-events-none absolute inset-0 z-0">
+      <div
+        className={cn(
+          side,
+          "bg-spot-side-left -left-65 origin-[23.6%_0] motion-safe:animate-spot-left",
+        )}
+      />
+      <div
+        className={cn(
+          side,
+          "bg-spot-side-right -right-65 origin-[76.4%_0] motion-safe:animate-spot-right",
+        )}
+      />
+      <div className="absolute -top-10 left-1/2 -ml-300 h-250 w-600 origin-[50%_0] rotate-(--tilt,0deg) transition-[rotate] duration-1200 ease-[cubic-bezier(0.2,0.7,0.2,1)] will-change-transform motion-safe:animate-spot-aim">
+        <div className="bg-spot-beam absolute inset-0 origin-[50%_0] blur-[26px]" />
+        <div className="mask-spot-cone absolute inset-0 origin-[50%_0]">
+          <div className="bg-spot-rays absolute inset-0 opacity-85 blur-[1.5px]" />
+          <div className="bg-spot-grid absolute inset-0" />
         </div>
-      </section>
-    </>
+      </div>
+      <div className="bg-spot-flare absolute -top-0.75 left-1/2 -ml-200 h-2.5 w-400 rounded-full blur-[3px] will-change-[opacity,transform] motion-safe:animate-spot-flare" />
+      <div className="bg-spot-lamp absolute -top-px left-1/2 -ml-95 h-0.5 w-190 rounded-full will-change-[opacity,transform] motion-safe:animate-spot-breath" />
+      <div className="absolute inset-0">
+        {MOTES.map(([left, top, delay, duration]) => (
+          <i
+            key={left + top}
+            style={{ animationDelay: delay, animationDuration: duration }}
+            className={cn(
+              "absolute size-0.75 rounded-full bg-mint opacity-0 shadow-[0_0_8px_2px_rgba(95,211,181,0.6)] motion-safe:animate-mote",
+              left,
+              top,
+            )}
+          />
+        ))}
+      </div>
+      <div className="bg-spot-pool absolute top-125 left-1/2 -ml-187.5 h-85 w-375 rounded-full blur-[30px] will-change-[opacity,transform] motion-safe:animate-spot-breath" />
+    </div>
   );
 }

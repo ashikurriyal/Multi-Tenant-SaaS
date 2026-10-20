@@ -1,10 +1,15 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
+import GlowFrame from "./GlowFrame";
 
 // The hero's scripted product walkthrough (about 16 s, looping): Initech's Free workspace
 // reports usage until the limit holds, upgrades to Pro with a test card, and usage flows
 // again once Stripe confirms. Visitors who prefer reduced motion see the final state.
+//
+// Everything inside the app is sized in em off one font size (1/67 of the frame's width,
+// a container query unit), so the whole mock scales like a screenshot.
 
 type FeedEntry = { code: "202" | "429"; text: string };
 type Scene = {
@@ -183,1387 +188,515 @@ export default function HeroWalkthrough() {
     }
   };
 
-  const dash = s.scene === "dash";
-  const pro = s.plan === "pro";
-  const pct = Math.min(100, Math.round((s.used / s.limit) * 1000) / 10);
-  const warn = !pro && pct >= 80;
-  const isDash = dash;
-  const isBilling = !dash;
-  const urlPath = dash ? "/demo-initech/dashboard" : "/demo-initech/billing";
-  const pageTitle = dash ? "Dashboard" : "Billing";
-  const navDashBg = dash ? "#E3E9E7" : "transparent";
-  const navDashWeight = dash ? 600 : 400;
-  const navBillingBg = dash ? "transparent" : "#E3E9E7";
-  const navBillingWeight = dash ? 400 : 600;
-  const planChipText = pro ? "PRO · ACTIVE" : "FREE";
-  const planChipBg = pro ? "color-mix(in srgb, var(--lf-accent) 12%, #FFFFFF)" : "#EEF2F1";
-  const planChipColor = pro ? "#0A6152" : "#3F4B52";
-  const planChipDot = pro ? "var(--lf-accent)" : "#8C9B97";
-  const limitHit = s.limitHit && dash;
-  const usedText = s.used.toLocaleString("en-US");
-  const limitText = s.limit.toLocaleString("en-US");
-  const pctText = (pro ? Math.max(1, Math.round(pct)) : Math.round(pct)) + "%";
-  const pctColor = s.limitHit ? "#B42C22" : warn ? "#8A3F06" : "#0A6152";
-  const meterColor = s.limitHit ? "#C0352B" : warn ? "#D99A1E" : "var(--lf-accent)";
-  const usageFoot = s.limitHit
-    ? "Limit reached · new usage is rejected"
-    : pro
-      ? "Within the 50,000 included units"
-      : Math.round(pct) + "% of the Free limit";
-  const planName = pro ? "Pro" : "Free";
-  const planFoot = pro
-    ? "50,000 units included · $0.002 per extra unit"
-    : "1,000 units a month · hard limit";
-  const feed = s.feed.map((e, i) => ({
-    ...e,
-    time: i === 0 ? "now" : i * 2 + "s",
-    opacity: Math.max(0.35, 1 - i * 0.11),
-    codeBg: e.code === "429" ? "rgba(232,176,75,0.16)" : "rgba(95,211,181,0.14)",
-    codeColor: e.code === "429" ? "#E8B04B" : "#5FD3B5",
-  }));
-  const upgradeBg = s.press === "upgrade" ? "#8E2A20" : "#C0352B";
-  const chooseBg = s.press === "choose" ? "#0A6152" : "var(--lf-accent)";
-  const { checkout, cardFocus, paying, toast, clicking } = s;
-  const cardText = s.cardText || "1234 1234 1234 1234";
-  const cardColor = s.cardText ? "#0B1215" : "#9AA8A4";
-  const cardBorder = s.cardFocus ? "var(--lf-accent)" : "#D4DCDA";
-  const cardRing = s.cardFocus
-    ? "0 0 0 3px color-mix(in srgb, var(--lf-accent) 18%, transparent)"
-    : "none";
-  const payLabel = s.paying ? "Processing…" : "Pay $49.00";
-  const payBg = s.press === "pay" ? "#000000" : "#0B1215";
-  const showCursor = s.mode === "play";
-  const cx = Math.round(s.cx);
-  const cy = Math.round(s.cy);
-  const cursorScale = s.press ? 0.86 : 1;
-  const canPause = s.mode === "play";
-  const pauseLabel = s.paused ? "Play animation" : "Pause animation";
-  const pausedAria = s.paused;
+  const playing = s.mode === "play";
 
   return (
-    <div className="glow wide" style={{ borderRadius: "16px", padding: "1px" }}>
-      <span className="glow-ring" aria-hidden="true">
-        <span />
-      </span>
-      <div
-        style={{
-          position: "relative",
-          borderRadius: "16px",
-          overflow: "hidden",
-          background: "#FFFFFF",
-          border: "1px solid #DCE3E1",
-          boxShadow: "0 30px 80px -30px rgba(11,18,21,0.35)",
-          containerType: "inline-size",
-        }}
-      >
+    <GlowFrame wide>
+      <div className="@container relative overflow-hidden rounded-[16px] border border-frame bg-white shadow-[0_30px_80px_-30px_rgba(11,18,21,0.35)]">
         <div
           role="img"
           aria-label="Animated walkthrough of LedgerFlow: a Free workspace reports usage through the API until it hits its limit, upgrades to Pro with a test card, and usage flows again once Stripe confirms the payment"
         >
           <div
-            className="demo"
-            aria-hidden="true"
-            style={{
-              fontSize: "calc(100cqw / 67)",
-              textAlign: "left",
-              userSelect: "none",
-              lineHeight: "1.25",
-            }}
+            aria-hidden
+            className="text-left text-[calc(100cqw/67)] leading-tight select-none"
           >
-            {/* Browser bar */}
-            <div
-              style={{
-                height: "2.6em",
-                boxSizing: "border-box",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5em",
-                padding: "0 1em",
-                borderBottom: "1px solid #E8EDEB",
-                background: "#F7F9F8",
-              }}
-            >
-              <span
-                style={{
-                  width: "0.7em",
-                  height: "0.7em",
-                  borderRadius: "999px",
-                  background: "#E2E8E6",
-                }}
-              />
-              <span
-                style={{
-                  width: "0.7em",
-                  height: "0.7em",
-                  borderRadius: "999px",
-                  background: "#E2E8E6",
-                }}
-              />
-              <span
-                style={{
-                  width: "0.7em",
-                  height: "0.7em",
-                  borderRadius: "999px",
-                  background: "#E2E8E6",
-                }}
-              />
-              <span
-                style={{
-                  marginLeft: "0.8em",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  height: "1.6em",
-                  boxSizing: "border-box",
-                  padding: "0 0.8em",
-                  background: "#FFFFFF",
-                  border: "1px solid #E3E8E6",
-                  borderRadius: "0.45em",
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                    fontSize: "0.7em",
-                    lineHeight: "1",
-                    color: "#5B676E",
-                  }}
-                >
-                  ledgerflow-web-portal.vercel.app{urlPath}
-                </span>
-              </span>
-            </div>
-            {/* App */}
+            <BrowserBar scene={s.scene} />
             <div
               ref={appRef}
               data-lf="app"
-              style={{
-                position: "relative",
-                height: "37.4em",
-                overflow: "hidden",
-                background: "#FFFFFF",
-                display: "flex",
-              }}
+              className="relative flex h-[37.4em] overflow-hidden bg-white"
             >
-              {/* Sidebar */}
-              <div
-                style={{
-                  flex: "none",
-                  width: "13em",
-                  boxSizing: "border-box",
-                  background: "#F7F9F8",
-                  borderRight: "1px solid #E3E8E6",
-                  padding: "1em 0.75em",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    height: "3.5em",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.6em",
-                    padding: "0 0.5em",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "2em",
-                      height: "2em",
-                      flex: "none",
-                      borderRadius: "0.5em",
-                      background: "#0B1215",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.68em",
-                        fontWeight: "600",
-                        lineHeight: "1",
-                        color: "#FFFFFF",
-                      }}
-                    >
-                      IN
-                    </span>
-                  </span>
-                  <span style={{ display: "flex", flexDirection: "column", gap: "0.2em" }}>
-                    <span style={{ fontSize: "0.8em", fontWeight: "600", lineHeight: "1" }}>
-                      Initech
-                    </span>
-                    <span style={{ fontSize: "0.66em", lineHeight: "1", color: "#5B676E" }}>
-                      owner
-                    </span>
-                  </span>
-                </div>
-                <div
-                  style={{
-                    height: "2.2em",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 0.7em",
-                    borderRadius: "0.5em",
-                    background: navDashBg,
-                    transition: "background 0.25s ease",
-                  }}
-                >
-                  <span style={{ fontSize: "0.78em", lineHeight: "1", fontWeight: navDashWeight }}>
-                    Dashboard
-                  </span>
-                </div>
-                <div
-                  style={{
-                    height: "2.2em",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 0.7em",
-                    borderRadius: "0.5em",
-                  }}
-                >
-                  <span style={{ fontSize: "0.78em", lineHeight: "1" }}>Usage</span>
-                </div>
-                <div
-                  style={{
-                    height: "2.2em",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 0.7em",
-                    borderRadius: "0.5em",
-                    background: navBillingBg,
-                    transition: "background 0.25s ease",
-                  }}
-                >
-                  <span
-                    style={{ fontSize: "0.78em", lineHeight: "1", fontWeight: navBillingWeight }}
-                  >
-                    Billing
-                  </span>
-                </div>
-                <div
-                  style={{
-                    height: "2.2em",
-                    display: "flex",
-                    alignItems: "flex-end",
-                    padding: "0 0.7em 0.4em",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <span style={{ fontSize: "0.64em", lineHeight: "1", color: "#5B676E" }}>
-                    Settings
-                  </span>
-                </div>
-                <div
-                  style={{
-                    height: "2.2em",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 0.7em",
-                    borderRadius: "0.5em",
-                  }}
-                >
-                  <span style={{ fontSize: "0.78em", lineHeight: "1" }}>Members</span>
-                </div>
-                <div
-                  style={{
-                    height: "2.2em",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 0.7em",
-                    borderRadius: "0.5em",
-                  }}
-                >
-                  <span style={{ fontSize: "0.78em", lineHeight: "1" }}>API keys</span>
-                </div>
-                <div
-                  style={{
-                    height: "2.2em",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 0.7em",
-                    borderRadius: "0.5em",
-                  }}
-                >
-                  <span style={{ fontSize: "0.78em", lineHeight: "1" }}>Audit log</span>
-                </div>
-                <div
-                  style={{
-                    marginTop: "auto",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.6em",
-                    padding: "0 0.5em",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "1.9em",
-                      height: "1.9em",
-                      flex: "none",
-                      borderRadius: "0.45em",
-                      background: "#E9EEEC",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.68em", lineHeight: "1" }}>P</span>
-                  </span>
-                  <span
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.25em",
-                      minWidth: "0",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.72em", fontWeight: "600", lineHeight: "1" }}>
-                      Priya Singh
-                    </span>
-                    <span style={{ fontSize: "0.6em", lineHeight: "1", color: "#5B676E" }}>
-                      priya.singh@initech.example
-                    </span>
-                  </span>
-                </div>
+              <Sidebar scene={s.scene} />
+              <div className="flex min-w-0 flex-1 flex-col gap-[1.1em] px-[2em] py-[1.75em]">
+                <PageHeader scene={s.scene} pro={s.plan === "pro"} />
+                {s.scene === "dash" ? <Dashboard s={s} /> : <Billing press={s.press} />}
               </div>
-              {/* Main */}
-              <div
-                style={{
-                  flex: "1",
-                  minWidth: "0",
-                  boxSizing: "border-box",
-                  padding: "1.75em 2em",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "1.1em",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "1em",
-                    minHeight: "2.6em",
-                  }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.4em" }}>
-                    <span
-                      style={{
-                        fontSize: "1.4em",
-                        fontWeight: "650",
-                        lineHeight: "1",
-                        letterSpacing: "-0.02em",
-                      }}
-                    >
-                      {pageTitle}
-                    </span>
-                    <span style={{ fontSize: "0.74em", lineHeight: "1", color: "#5B676E" }}>
-                      Initech
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.45em",
-                      height: "1.9em",
-                      boxSizing: "border-box",
-                      padding: "0 0.85em",
-                      borderRadius: "999px",
-                      background: planChipBg,
-                      transition: "background 0.3s ease",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "0.45em",
-                        height: "0.45em",
-                        borderRadius: "999px",
-                        background: planChipDot,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: "0.68em",
-                        fontWeight: "600",
-                        lineHeight: "1",
-                        letterSpacing: "0.04em",
-                        color: planChipColor,
-                      }}
-                    >
-                      {planChipText}
-                    </span>
-                  </span>
-                </div>
-                {isDash && (
-                  <>
-                    <div
-                      className="scene"
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "1em",
-                        flex: "1",
-                        minHeight: "0",
-                      }}
-                    >
-                      {limitHit && (
-                        <>
-                          <div
-                            className="pop"
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.9em",
-                              padding: "0.8em 0.9em 0.8em 1em",
-                              border: "1px solid #F2C7BC",
-                              background: "#FDF1EE",
-                              borderRadius: "0.75em",
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: "1.7em",
-                                height: "1.7em",
-                                flex: "none",
-                                borderRadius: "999px",
-                                background: "#C0352B",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "0.78em",
-                                  fontWeight: "700",
-                                  lineHeight: "1",
-                                  color: "#FFFFFF",
-                                }}
-                              >
-                                !
-                              </span>
-                            </span>
-                            <span
-                              style={{
-                                flex: "1",
-                                minWidth: "0",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "0.35em",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "0.78em",
-                                  fontWeight: "600",
-                                  lineHeight: "1",
-                                  color: "#8E2A20",
-                                }}
-                              >
-                                Monthly usage limit reached
-                              </span>
-                              <span
-                                style={{ fontSize: "0.68em", lineHeight: "1.2", color: "#8E2A20" }}
-                              >
-                                New usage is rejected until the limit resets on Nov 1.
-                              </span>
-                            </span>
-                            <span
-                              data-lf="upgrade"
-                              style={{
-                                flex: "none",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                height: "2.3em",
-                                boxSizing: "border-box",
-                                padding: "0 1.1em",
-                                borderRadius: "0.55em",
-                                background: upgradeBg,
-                                transition: "background 0.15s ease",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "0.74em",
-                                  fontWeight: "500",
-                                  lineHeight: "1",
-                                  color: "#FFFFFF",
-                                }}
-                              >
-                                Upgrade plan
-                              </span>
-                            </span>
-                          </div>
-                        </>
-                      )}
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
-                          gap: "1em",
-                          flex: "1",
-                          minHeight: "0",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "1em",
-                            minHeight: "0",
-                          }}
-                        >
-                          <div
-                            style={{
-                              border: "1px solid #E3E8E6",
-                              borderRadius: "0.8em",
-                              padding: "1.1em 1.2em",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "0.8em",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
-                              <span
-                                style={{ fontSize: "0.72em", lineHeight: "1", color: "#5B676E" }}
-                              >
-                                Usage this period
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "0.72em",
-                                  lineHeight: "1",
-                                  fontWeight: "600",
-                                  color: pctColor,
-                                }}
-                              >
-                                {pctText}
-                              </span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "baseline", gap: "0.35em" }}>
-                              <span
-                                style={{
-                                  fontSize: "1.9em",
-                                  fontWeight: "650",
-                                  lineHeight: "1",
-                                  letterSpacing: "-0.02em",
-                                  fontVariantNumeric: "tabular-nums",
-                                }}
-                              >
-                                {usedText}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "0.9em",
-                                  lineHeight: "1",
-                                  color: "#5B676E",
-                                  fontVariantNumeric: "tabular-nums",
-                                }}
-                              >
-                                / {limitText}
-                              </span>
-                            </div>
-                            <span
-                              style={{
-                                display: "block",
-                                height: "0.55em",
-                                borderRadius: "999px",
-                                background: "#E9EEEC",
-                                overflow: "hidden",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  display: "block",
-                                  height: "100%",
-                                  borderRadius: "999px",
-                                  width: `${pct}%`,
-                                  background: meterColor,
-                                  transition:
-                                    "width 0.5s cubic-bezier(.2,.7,.2,1), background 0.3s ease",
-                                }}
-                              />
-                            </span>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#5B676E" }}>
-                              {usageFoot}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              border: "1px solid #E3E8E6",
-                              borderRadius: "0.8em",
-                              padding: "1.1em 1.2em",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "0.7em",
-                            }}
-                          >
-                            <span style={{ fontSize: "0.72em", lineHeight: "1", color: "#5B676E" }}>
-                              Plan
-                            </span>
-                            <span
-                              style={{ fontSize: "1.35em", fontWeight: "650", lineHeight: "1" }}
-                            >
-                              {planName}
-                            </span>
-                            <span
-                              style={{ fontSize: "0.68em", lineHeight: "1.3", color: "#5B676E" }}
-                            >
-                              {planFoot}
-                            </span>
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            background: "#0B1215",
-                            borderRadius: "0.8em",
-                            padding: "1em 1.1em",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.7em",
-                            minHeight: "0",
-                            overflow: "hidden",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: "0.6em",
-                              paddingBottom: "0.2em",
-                            }}
-                          >
-                            <span
-                              style={{ display: "inline-flex", alignItems: "center", gap: "0.5em" }}
-                            >
-                              <span
-                                className="live-dot"
-                                style={{
-                                  width: "0.45em",
-                                  height: "0.45em",
-                                  borderRadius: "999px",
-                                  background: "#5FD3B5",
-                                }}
-                              />
-                              <span
-                                style={{
-                                  fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                                  fontSize: "0.66em",
-                                  lineHeight: "1",
-                                  letterSpacing: "0.06em",
-                                  color: "#8FA19C",
-                                }}
-                              >
-                                LIVE API EVENTS
-                              </span>
-                            </span>
-                            <span
-                              style={{
-                                fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                                fontSize: "0.62em",
-                                lineHeight: "1",
-                                color: "#6F827D",
-                              }}
-                            >
-                              POST /api/v1/usage
-                            </span>
-                          </div>
-                          {feed.map((e, i) => (
-                            <Fragment key={i}>
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gridTemplateColumns: "3.1em minmax(0, 1fr) 2.4em",
-                                  alignItems: "center",
-                                  gap: "0.6em",
-                                  opacity: e.opacity,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    height: "1.55em",
-                                    borderRadius: "0.35em",
-                                    background: e.codeBg,
-                                  }}
-                                >
-                                  <span
-                                    style={{
-                                      fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                                      fontSize: "0.64em",
-                                      fontWeight: "600",
-                                      lineHeight: "1",
-                                      color: e.codeColor,
-                                    }}
-                                  >
-                                    {e.code}
-                                  </span>
-                                </span>
-                                <span
-                                  style={{
-                                    fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                                    fontSize: "0.66em",
-                                    lineHeight: "1",
-                                    color: "#C5D1CD",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                  }}
-                                >
-                                  {e.text}
-                                </span>
-                                <span
-                                  style={{
-                                    fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                                    fontSize: "0.6em",
-                                    lineHeight: "1",
-                                    color: "#6F827D",
-                                    textAlign: "right",
-                                  }}
-                                >
-                                  {e.time}
-                                </span>
-                              </div>
-                            </Fragment>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-                {isBilling && (
-                  <>
-                    <div
-                      className="scene"
-                      style={{ display: "flex", flexDirection: "column", gap: "1em" }}
-                    >
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                          gap: "1em",
-                          alignItems: "stretch",
-                        }}
-                      >
-                        <div
-                          style={{
-                            border: "1px solid #E3E8E6",
-                            borderRadius: "0.9em",
-                            padding: "1.2em",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.8em",
-                          }}
-                        >
-                          <span style={{ fontSize: "0.8em", fontWeight: "600", lineHeight: "1" }}>
-                            Free
-                          </span>
-                          <span style={{ display: "flex", alignItems: "baseline", gap: "0.3em" }}>
-                            <span style={{ fontSize: "1.8em", fontWeight: "650", lineHeight: "1" }}>
-                              $0
-                            </span>
-                            <span style={{ fontSize: "0.7em", lineHeight: "1", color: "#5B676E" }}>
-                              / month
-                            </span>
-                          </span>
-                          <span style={{ display: "flex", flexDirection: "column", gap: "0.5em" }}>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              3 seats
-                            </span>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              1,000 units a month
-                            </span>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              Hard limit, no overage
-                            </span>
-                          </span>
-                          <span
-                            style={{
-                              marginTop: "auto",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              height: "2.3em",
-                              borderRadius: "0.55em",
-                              background: "#F2F5F4",
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: "0.72em",
-                                fontWeight: "500",
-                                lineHeight: "1",
-                                color: "#5B676E",
-                              }}
-                            >
-                              Current plan
-                            </span>
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            border: "2px solid var(--lf-accent)",
-                            borderRadius: "0.9em",
-                            padding: "calc(1.2em - 1px)",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.8em",
-                            boxShadow:
-                              "0 1em 2em -1.4em color-mix(in srgb, var(--lf-accent) 70%, transparent)",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <span style={{ fontSize: "0.8em", fontWeight: "600", lineHeight: "1" }}>
-                              Pro
-                            </span>
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                height: "1.5em",
-                                padding: "0 0.6em",
-                                borderRadius: "999px",
-                                background: "var(--lf-accent)",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "0.58em",
-                                  fontWeight: "600",
-                                  lineHeight: "1",
-                                  color: "#FFFFFF",
-                                }}
-                              >
-                                Most teams
-                              </span>
-                            </span>
-                          </span>
-                          <span style={{ display: "flex", alignItems: "baseline", gap: "0.3em" }}>
-                            <span style={{ fontSize: "1.8em", fontWeight: "650", lineHeight: "1" }}>
-                              $49
-                            </span>
-                            <span style={{ fontSize: "0.7em", lineHeight: "1", color: "#5B676E" }}>
-                              / month
-                            </span>
-                          </span>
-                          <span style={{ display: "flex", flexDirection: "column", gap: "0.5em" }}>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              10 seats
-                            </span>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              50,000 units included
-                            </span>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              $0.002 per extra unit
-                            </span>
-                          </span>
-                          <span
-                            data-lf="choose"
-                            style={{
-                              marginTop: "auto",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              height: "2.3em",
-                              borderRadius: "0.55em",
-                              background: chooseBg,
-                              transition: "background 0.15s ease",
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: "0.72em",
-                                fontWeight: "500",
-                                lineHeight: "1",
-                                color: "#FFFFFF",
-                              }}
-                            >
-                              Choose Pro
-                            </span>
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            border: "1px solid #E3E8E6",
-                            borderRadius: "0.9em",
-                            padding: "1.2em",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.8em",
-                          }}
-                        >
-                          <span style={{ fontSize: "0.8em", fontWeight: "600", lineHeight: "1" }}>
-                            Business
-                          </span>
-                          <span style={{ display: "flex", alignItems: "baseline", gap: "0.3em" }}>
-                            <span style={{ fontSize: "1.8em", fontWeight: "650", lineHeight: "1" }}>
-                              $199
-                            </span>
-                            <span style={{ fontSize: "0.7em", lineHeight: "1", color: "#5B676E" }}>
-                              / month
-                            </span>
-                          </span>
-                          <span style={{ display: "flex", flexDirection: "column", gap: "0.5em" }}>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              50 seats
-                            </span>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              500,000 units included
-                            </span>
-                            <span style={{ fontSize: "0.68em", lineHeight: "1", color: "#46535A" }}>
-                              $0.001 per extra unit
-                            </span>
-                          </span>
-                          <span
-                            style={{
-                              marginTop: "auto",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              height: "2.3em",
-                              boxSizing: "border-box",
-                              borderRadius: "0.55em",
-                              border: "1px solid #D4DCDA",
-                            }}
-                          >
-                            <span
-                              style={{ fontSize: "0.72em", fontWeight: "500", lineHeight: "1" }}
-                            >
-                              Choose Business
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                      <span style={{ fontSize: "0.66em", lineHeight: "1", color: "#5B676E" }}>
-                        Payments run in Stripe test mode.
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-              {/* Checkout */}
-              {checkout && (
-                <>
-                  <div
-                    className="fade"
-                    style={{
-                      position: "absolute",
-                      inset: "0",
-                      background: "rgba(11,18,21,0.32)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      zIndex: "3",
-                    }}
-                  >
-                    <div
-                      className="pop"
-                      style={{
-                        width: "24em",
-                        boxSizing: "border-box",
-                        background: "#FFFFFF",
-                        borderRadius: "1em",
-                        padding: "1.4em",
-                        boxShadow: "0 1.6em 3.2em -1.2em rgba(11,18,21,0.5)",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "1em",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: "1em",
-                        }}
-                      >
-                        <span style={{ fontSize: "1em", fontWeight: "650", lineHeight: "1" }}>
-                          Upgrade to Pro
-                        </span>
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            height: "1.6em",
-                            padding: "0 0.6em",
-                            borderRadius: "0.4em",
-                            background: "#FEF3C7",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                              fontSize: "0.58em",
-                              fontWeight: "600",
-                              lineHeight: "1",
-                              color: "#8A3F06",
-                            }}
-                          >
-                            TEST MODE
-                          </span>
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "0.85em 0",
-                          borderTop: "1px solid #EEF2F1",
-                          borderBottom: "1px solid #EEF2F1",
-                        }}
-                      >
-                        <span style={{ fontSize: "0.76em", lineHeight: "1" }}>Pro · monthly</span>
-                        <span
-                          style={{
-                            fontSize: "0.76em",
-                            fontWeight: "600",
-                            lineHeight: "1",
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
-                          $49.00
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5em" }}>
-                        <span style={{ fontSize: "0.66em", fontWeight: "600", lineHeight: "1" }}>
-                          Card number
-                        </span>
-                        <span
-                          data-lf="card"
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            height: "2.4em",
-                            boxSizing: "border-box",
-                            padding: "0 0.8em",
-                            borderRadius: "0.55em",
-                            border: `1px solid ${cardBorder}`,
-                            boxShadow: cardRing,
-                            transition: "border-color 0.2s ease, box-shadow 0.2s ease",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                              fontSize: "0.76em",
-                              lineHeight: "1",
-                              letterSpacing: "0.04em",
-                              color: cardColor,
-                            }}
-                          >
-                            {cardText}
-                          </span>
-                          {cardFocus && (
-                            <>
-                              <span
-                                className="type-caret"
-                                style={{
-                                  width: "1px",
-                                  height: "1.1em",
-                                  marginLeft: "2px",
-                                  background: "#0B1215",
-                                }}
-                              />
-                            </>
-                          )}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                          gap: "0.8em",
-                        }}
-                      >
-                        <span style={{ display: "flex", flexDirection: "column", gap: "0.5em" }}>
-                          <span style={{ fontSize: "0.66em", fontWeight: "600", lineHeight: "1" }}>
-                            Expiry
-                          </span>
-                          <span
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              height: "2.4em",
-                              boxSizing: "border-box",
-                              padding: "0 0.8em",
-                              borderRadius: "0.55em",
-                              border: "1px solid #D4DCDA",
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                                fontSize: "0.76em",
-                                lineHeight: "1",
-                              }}
-                            >
-                              12 / 30
-                            </span>
-                          </span>
-                        </span>
-                        <span style={{ display: "flex", flexDirection: "column", gap: "0.5em" }}>
-                          <span style={{ fontSize: "0.66em", fontWeight: "600", lineHeight: "1" }}>
-                            CVC
-                          </span>
-                          <span
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              height: "2.4em",
-                              boxSizing: "border-box",
-                              padding: "0 0.8em",
-                              borderRadius: "0.55em",
-                              border: "1px solid #D4DCDA",
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                                fontSize: "0.76em",
-                                lineHeight: "1",
-                              }}
-                            >
-                              123
-                            </span>
-                          </span>
-                        </span>
-                      </div>
-                      <span
-                        data-lf="pay"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "0.55em",
-                          height: "2.6em",
-                          borderRadius: "0.6em",
-                          background: payBg,
-                          transition: "background 0.15s ease",
-                        }}
-                      >
-                        {paying && (
-                          <>
-                            <span
-                              className="spin"
-                              style={{
-                                width: "0.9em",
-                                height: "0.9em",
-                                boxSizing: "border-box",
-                                borderRadius: "999px",
-                                border: "2px solid rgba(255,255,255,0.35)",
-                                borderTopColor: "#FFFFFF",
-                              }}
-                            />
-                          </>
-                        )}
-                        <span
-                          style={{
-                            fontSize: "0.76em",
-                            fontWeight: "500",
-                            lineHeight: "1",
-                            color: "#FFFFFF",
-                          }}
-                        >
-                          {payLabel}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                </>
-              )}
-              {/* Toast */}
-              {toast && (
-                <>
-                  <div
-                    className="toast"
-                    style={{
-                      position: "absolute",
-                      right: "1.4em",
-                      bottom: "1.4em",
-                      zIndex: "4",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75em",
-                      background: "#FFFFFF",
-                      border: "1px solid #E3E8E6",
-                      borderRadius: "0.8em",
-                      padding: "0.85em 1.1em 0.85em 0.9em",
-                      boxShadow: "0 1em 2.4em -1em rgba(11,18,21,0.38)",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "1.6em",
-                        height: "1.6em",
-                        flex: "none",
-                        borderRadius: "999px",
-                        background: "var(--lf-accent)",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <svg
-                        width="0.9em"
-                        height="0.9em"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#FFFFFF"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
-                    </span>
-                    <span style={{ display: "flex", flexDirection: "column", gap: "0.35em" }}>
-                      <span style={{ fontSize: "0.76em", fontWeight: "600", lineHeight: "1" }}>
-                        Payment confirmed
-                      </span>
-                      <span style={{ fontSize: "0.66em", lineHeight: "1", color: "#5B676E" }}>
-                        Webhook processed · Pro is active
-                      </span>
-                    </span>
-                  </div>
-                </>
-              )}
-              {/* Cursor */}
-              {showCursor && (
-                <>
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "0",
-                      top: "0",
-                      zIndex: "6",
-                      pointerEvents: "none",
-                      transform: `translate(${cx}px, ${cy}px)`,
-                      transition: "transform 0.95s cubic-bezier(.22,1,.36,1)",
-                    }}
-                  >
-                    {clicking && (
-                      <>
-                        <span
-                          className="ring"
-                          style={{
-                            position: "absolute",
-                            left: "-1.3em",
-                            top: "-1.3em",
-                            width: "2.6em",
-                            height: "2.6em",
-                            borderRadius: "999px",
-                            background: "color-mix(in srgb, var(--lf-accent) 28%, transparent)",
-                          }}
-                        />
-                      </>
-                    )}
-                    <div
-                      style={{
-                        position: "relative",
-                        transform: `scale(${cursorScale})`,
-                        transformOrigin: "0 0",
-                        transition: "transform 0.14s ease",
-                      }}
-                    >
-                      <svg
-                        width="1.3em"
-                        height="1.3em"
-                        viewBox="0 0 20 20"
-                        style={{
-                          display: "block",
-                          filter: "drop-shadow(0 0.12em 0.22em rgba(11,18,21,0.35))",
-                        }}
-                      >
-                        <path
-                          d="M3 2.2l13.6 5.7c.8.3.7 1.4-.1 1.6l-5.6 1.5-2.3 5.4c-.3.8-1.4.7-1.6-.1L2.2 3.1c-.2-.6.3-1.1.8-.9z"
-                          fill="var(--lf-accent)"
-                          stroke="#FFFFFF"
-                          strokeWidth="1.5"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <span
-                        style={{
-                          position: "absolute",
-                          left: "1.15em",
-                          top: "1.15em",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          height: "1.55em",
-                          padding: "0 0.6em",
-                          borderRadius: "999px",
-                          background: "var(--lf-accent)",
-                          whiteSpace: "nowrap",
-                          boxShadow: "0 0.35em 0.9em -0.35em rgba(11,18,21,0.45)",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.64em",
-                            fontWeight: "600",
-                            lineHeight: "1",
-                            color: "#FFFFFF",
-                          }}
-                        >
-                          Owner
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                </>
-              )}
+              {s.checkout && <Checkout s={s} />}
+              {s.toast && <Toast />}
+              {playing && <Cursor x={s.cx} y={s.cy} clicking={s.clicking} pressed={!!s.press} />}
             </div>
           </div>
         </div>
-        {canPause && (
-          <>
-            <button
-              type="button"
-              onClick={togglePause}
-              aria-pressed={pausedAria}
-              style={{
-                position: "absolute",
-                left: "12px",
-                bottom: "12px",
-                minHeight: "32px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                font: "inherit",
-                fontSize: "12.5px",
-                color: "#2F3B42",
-                background: "rgba(255,255,255,0.92)",
-                border: "1px solid #D4DCDA",
-                borderRadius: "999px",
-                padding: "4px 12px",
-                cursor: "pointer",
-              }}
-            >
-              {pauseLabel}
-            </button>
-          </>
+        {playing && (
+          <button
+            type="button"
+            onClick={togglePause}
+            aria-pressed={s.paused}
+            className="absolute bottom-3 left-3 inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border border-line-strong bg-white/92 px-3 py-1 text-[12.5px] text-ink-soft"
+          >
+            {s.paused ? "Play animation" : "Pause animation"}
+          </button>
         )}
+      </div>
+    </GlowFrame>
+  );
+}
+
+// Typical text sizes inside the mock (relative to its em)
+const label = "text-[0.72em] leading-none text-subtle";
+const note = "text-[0.68em] leading-none text-subtle";
+const card = "flex flex-col rounded-[0.8em] border border-line px-[1.2em] py-[1.1em]";
+
+function BrowserBar({ scene }: { scene: Scene["scene"] }) {
+  return (
+    <div className="flex h-[2.6em] items-center gap-[0.5em] border-b border-divider bg-surface px-[1em]">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="size-[0.7em] rounded-full bg-[#E2E8E6]" />
+      ))}
+      <span className="ml-[0.8em] inline-flex h-[1.6em] items-center rounded-[0.45em] border border-line bg-white px-[0.8em]">
+        <span className="font-mono text-[0.7em] leading-none text-subtle">
+          ledgerflow-web-portal.vercel.app/demo-initech/{scene === "dash" ? "dashboard" : "billing"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+const NAV: { label: string; scene?: Scene["scene"]; heading?: boolean }[] = [
+  { label: "Dashboard", scene: "dash" },
+  { label: "Usage" },
+  { label: "Billing", scene: "billing" },
+  { label: "Settings", heading: true },
+  { label: "Members" },
+  { label: "API keys" },
+  { label: "Audit log" },
+];
+
+function Sidebar({ scene }: { scene: Scene["scene"] }) {
+  return (
+    <div className="flex w-[13em] flex-none flex-col border-r border-line bg-surface px-[0.75em] py-[1em]">
+      <div className="flex h-[3.5em] items-center gap-[0.6em] px-[0.5em]">
+        <span className="inline-flex size-[2em] flex-none items-center justify-center rounded-[0.5em] bg-ink">
+          <span className="text-[0.68em] leading-none font-semibold text-white">IN</span>
+        </span>
+        <span className="flex flex-col gap-[0.2em]">
+          <span className="text-[0.8em] leading-none font-semibold">Initech</span>
+          <span className="text-[0.66em] leading-none text-subtle">owner</span>
+        </span>
+      </div>
+      {NAV.map((n) =>
+        n.heading ? (
+          <div key={n.label} className="flex h-[2.2em] items-end px-[0.7em] pb-[0.4em]">
+            <span className="text-[0.64em] leading-none text-subtle">{n.label}</span>
+          </div>
+        ) : (
+          <div
+            key={n.label}
+            className={cn(
+              "flex h-[2.2em] items-center rounded-[0.5em] px-[0.7em] transition-[background-color] duration-250",
+              n.scene === scene && "bg-[#E3E9E7] font-semibold",
+            )}
+          >
+            <span className="text-[0.78em] leading-none">{n.label}</span>
+          </div>
+        ),
+      )}
+      <div className="mt-auto flex items-center gap-[0.6em] px-[0.5em]">
+        <span className="inline-flex size-[1.9em] flex-none items-center justify-center rounded-[0.45em] bg-[#E9EEEC]">
+          <span className="text-[0.68em] leading-none">P</span>
+        </span>
+        <span className="flex min-w-0 flex-col gap-[0.25em]">
+          <span className="text-[0.72em] leading-none font-semibold">Priya Singh</span>
+          <span className="text-[0.6em] leading-none text-subtle">priya.singh@initech.example</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PageHeader({ scene, pro }: { scene: Scene["scene"]; pro: boolean }) {
+  return (
+    <div className="flex min-h-[2.6em] items-center justify-between gap-[1em]">
+      <div className="flex flex-col gap-[0.4em]">
+        <span className="text-[1.4em] leading-none font-[650] tracking-[-0.02em]">
+          {scene === "dash" ? "Dashboard" : "Billing"}
+        </span>
+        <span className="text-[0.74em] leading-none text-subtle">Initech</span>
+      </div>
+      <span
+        className={cn(
+          "inline-flex h-[1.9em] items-center gap-[0.45em] rounded-full px-[0.85em] transition-[background-color] duration-300",
+          pro ? "bg-primary/12" : "bg-line-soft",
+        )}
+      >
+        <span className={cn("size-[0.45em] rounded-full", pro ? "bg-primary" : "bg-[#8C9B97]")} />
+        <span
+          className={cn(
+            "text-[0.68em] leading-none font-semibold tracking-[0.04em]",
+            pro ? "text-brand-deep" : "text-[#3F4B52]",
+          )}
+        >
+          {pro ? "PRO · ACTIVE" : "FREE"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function Dashboard({ s }: { s: State }) {
+  const pro = s.plan === "pro";
+  const pct = Math.min(100, Math.round((s.used / s.limit) * 1000) / 10);
+  const warn = !pro && pct >= 80;
+  const tone = s.limitHit ? "hit" : warn ? "warn" : "ok";
+
+  return (
+    <div className="flex min-h-0 flex-1 animate-scene flex-col gap-[1em]">
+      {s.limitHit && <LimitBanner pressed={s.press === "upgrade"} />}
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-[1em]">
+        <div className="flex min-h-0 flex-col gap-[1em]">
+          <div className={cn(card, "gap-[0.8em]")}>
+            <div className="flex items-center justify-between">
+              <span className={label}>Usage this period</span>
+              <span
+                className={cn(
+                  "text-[0.72em] leading-none font-semibold",
+                  { hit: "text-[#B42C22]", warn: "text-[#8A3F06]", ok: "text-brand-deep" }[tone],
+                )}
+              >
+                {(pro ? Math.max(1, Math.round(pct)) : Math.round(pct)) + "%"}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-[0.35em]">
+              <span className="text-[1.9em] leading-none font-[650] tracking-[-0.02em] tabular-nums">
+                {s.used.toLocaleString("en-US")}
+              </span>
+              <span className="text-[0.9em] leading-none text-subtle tabular-nums">
+                / {s.limit.toLocaleString("en-US")}
+              </span>
+            </div>
+            <span className="block h-[0.55em] overflow-hidden rounded-full bg-[#E9EEEC]">
+              <span
+                style={{ width: `${pct}%` }}
+                className={cn(
+                  "block h-full rounded-full transition-[width,background-color] duration-500 ease-[cubic-bezier(0.2,0.7,0.2,1)]",
+                  { hit: "bg-[#C0352B]", warn: "bg-[#D99A1E]", ok: "bg-primary" }[tone],
+                )}
+              />
+            </span>
+            <span className={note}>
+              {s.limitHit
+                ? "Limit reached · new usage is rejected"
+                : pro
+                  ? "Within the 50,000 included units"
+                  : Math.round(pct) + "% of the Free limit"}
+            </span>
+          </div>
+          <div className={cn(card, "gap-[0.7em]")}>
+            <span className={label}>Plan</span>
+            <span className="text-[1.35em] leading-none font-[650]">{pro ? "Pro" : "Free"}</span>
+            <span className="text-[0.68em] leading-[1.3] text-subtle">
+              {pro
+                ? "50,000 units included · $0.002 per extra unit"
+                : "1,000 units a month · hard limit"}
+            </span>
+          </div>
+        </div>
+        <EventFeed feed={s.feed} />
+      </div>
+    </div>
+  );
+}
+
+function LimitBanner({ pressed }: { pressed: boolean }) {
+  return (
+    <div className="flex animate-pop items-center gap-[0.9em] rounded-[0.75em] border border-[#F2C7BC] bg-[#FDF1EE] py-[0.8em] pr-[0.9em] pl-[1em]">
+      <span className="inline-flex size-[1.7em] flex-none items-center justify-center rounded-full bg-destructive">
+        <span className="text-[0.78em] leading-none font-bold text-white">!</span>
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-[0.35em]">
+        <span className="text-[0.78em] leading-none font-semibold text-[#8E2A20]">
+          Monthly usage limit reached
+        </span>
+        <span className="text-[0.68em] leading-[1.2] text-[#8E2A20]">
+          New usage is rejected until the limit resets on Nov 1.
+        </span>
+      </span>
+      <span
+        data-lf="upgrade"
+        className={cn(
+          "inline-flex h-[2.3em] flex-none items-center justify-center rounded-[0.55em] px-[1.1em] transition-[background-color] duration-150",
+          pressed ? "bg-[#8E2A20]" : "bg-[#C0352B]",
+        )}
+      >
+        <span className="text-[0.74em] leading-none font-medium text-white">Upgrade plan</span>
+      </span>
+    </div>
+  );
+}
+
+// The API requests coming in; older lines fade out
+function EventFeed({ feed }: { feed: FeedEntry[] }) {
+  return (
+    <div className="flex min-h-0 flex-col gap-[0.7em] overflow-hidden rounded-[0.8em] bg-ink px-[1.1em] py-[1em]">
+      <div className="flex items-center justify-between gap-[0.6em] pb-[0.2em]">
+        <span className="inline-flex items-center gap-[0.5em]">
+          <span className="size-[0.45em] animate-live rounded-full bg-mint" />
+          <span className="font-mono text-[0.66em] leading-none tracking-[0.06em] text-sage">
+            LIVE API EVENTS
+          </span>
+        </span>
+        <span className="font-mono text-[0.62em] leading-none text-moss">POST /api/v1/usage</span>
+      </div>
+      {feed.map((e, i) => (
+        <div
+          key={i}
+          style={{ opacity: Math.max(0.35, 1 - i * 0.11) }}
+          className="grid grid-cols-[3.1em_minmax(0,1fr)_2.4em] items-center gap-[0.6em]"
+        >
+          <span
+            className={cn(
+              "inline-flex h-[1.55em] items-center justify-center rounded-[0.35em]",
+              e.code === "429" ? "bg-[#E8B04B]/16" : "bg-mint/14",
+            )}
+          >
+            <span
+              className={cn(
+                "font-mono text-[0.64em] leading-none font-semibold",
+                e.code === "429" ? "text-[#E8B04B]" : "text-mint",
+              )}
+            >
+              {e.code}
+            </span>
+          </span>
+          <span className="overflow-hidden font-mono text-[0.66em] leading-none text-ellipsis whitespace-nowrap text-fog">
+            {e.text}
+          </span>
+          <span className="text-right font-mono text-[0.6em] leading-none text-moss">
+            {i === 0 ? "now" : i * 2 + "s"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const PLANS = [
+  {
+    name: "Free",
+    price: "$0",
+    lines: ["3 seats", "1,000 units a month", "Hard limit, no overage"],
+  },
+  {
+    name: "Pro",
+    price: "$49",
+    lines: ["10 seats", "50,000 units included", "$0.002 per extra unit"],
+  },
+  {
+    name: "Business",
+    price: "$199",
+    lines: ["50 seats", "500,000 units included", "$0.001 per extra unit"],
+  },
+];
+
+function Billing({ press }: { press: Scene["press"] }) {
+  return (
+    <div className="flex animate-scene flex-col gap-[1em]">
+      <div className="grid grid-cols-3 items-stretch gap-[1em]">
+        {PLANS.map((p) => {
+          const pro = p.name === "Pro";
+          return (
+            <div
+              key={p.name}
+              className={cn(
+                "flex flex-col gap-[0.8em] rounded-[0.9em]",
+                pro
+                  ? "border-2 border-primary p-[calc(1.2em-1px)] shadow-[0_1em_2em_-1.4em_color-mix(in_srgb,var(--color-primary)_70%,transparent)]"
+                  : "border border-line p-[1.2em]",
+              )}
+            >
+              <span className="flex items-center justify-between">
+                <span className="text-[0.8em] leading-none font-semibold">{p.name}</span>
+                {pro && (
+                  <span className="inline-flex h-[1.5em] items-center rounded-full bg-primary px-[0.6em]">
+                    <span className="text-[0.58em] leading-none font-semibold text-white">
+                      Most teams
+                    </span>
+                  </span>
+                )}
+              </span>
+              <span className="flex items-baseline gap-[0.3em]">
+                <span className="text-[1.8em] leading-none font-[650]">{p.price}</span>
+                <span className="text-[0.7em] leading-none text-subtle">/ month</span>
+              </span>
+              <span className="flex flex-col gap-[0.5em]">
+                {p.lines.map((l) => (
+                  <span key={l} className="text-[0.68em] leading-none text-body">
+                    {l}
+                  </span>
+                ))}
+              </span>
+              <span
+                data-lf={pro ? "choose" : undefined}
+                className={cn(
+                  "mt-auto inline-flex h-[2.3em] items-center justify-center rounded-[0.55em]",
+                  p.name === "Free" && "bg-[#F2F5F4] text-subtle",
+                  pro && "text-white transition-[background-color] duration-150",
+                  pro && (press === "choose" ? "bg-brand-deep" : "bg-primary"),
+                  p.name === "Business" && "border border-line-strong",
+                )}
+              >
+                <span className="text-[0.72em] leading-none font-medium">
+                  {p.name === "Free" ? "Current plan" : `Choose ${p.name}`}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <span className="text-[0.66em] leading-none text-subtle">
+        Payments run in Stripe test mode.
+      </span>
+    </div>
+  );
+}
+
+const field = "flex h-[2.4em] items-center rounded-[0.55em] px-[0.8em]";
+const fieldLabel = "text-[0.66em] leading-none font-semibold";
+const fieldText = "font-mono text-[0.76em] leading-none";
+
+function Checkout({ s }: { s: State }) {
+  return (
+    <div className="absolute inset-0 z-3 flex animate-fade items-center justify-center bg-ink/32">
+      <div className="flex w-[24em] animate-pop flex-col gap-[1em] rounded-[1em] bg-white p-[1.4em] shadow-[0_1.6em_3.2em_-1.2em_rgba(11,18,21,0.5)]">
+        <div className="flex items-center justify-between gap-[1em]">
+          <span className="text-[1em] leading-none font-[650]">Upgrade to Pro</span>
+          <span className="inline-flex h-[1.6em] items-center rounded-[0.4em] bg-[#FEF3C7] px-[0.6em]">
+            <span className="font-mono text-[0.58em] leading-none font-semibold text-[#8A3F06]">
+              TEST MODE
+            </span>
+          </span>
+        </div>
+        <div className="flex items-center justify-between border-y border-line-soft py-[0.85em]">
+          <span className="text-[0.76em] leading-none">Pro · monthly</span>
+          <span className="text-[0.76em] leading-none font-semibold tabular-nums">$49.00</span>
+        </div>
+        <div className="flex flex-col gap-[0.5em]">
+          <span className={fieldLabel}>Card number</span>
+          <span
+            data-lf="card"
+            className={cn(
+              field,
+              "border transition-[border-color,box-shadow] duration-200",
+              s.cardFocus
+                ? "border-primary shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-primary)_18%,transparent)]"
+                : "border-line-strong",
+            )}
+          >
+            <span
+              className={cn(
+                fieldText,
+                "tracking-[0.04em]",
+                s.cardText ? "text-ink" : "text-[#9AA8A4]",
+              )}
+            >
+              {s.cardText || "1234 1234 1234 1234"}
+            </span>
+            {s.cardFocus && <span className="ml-0.5 h-[1.1em] w-px animate-caret bg-ink" />}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-[0.8em]">
+          {[
+            ["Expiry", "12 / 30"],
+            ["CVC", "123"],
+          ].map(([name, value]) => (
+            <span key={name} className="flex flex-col gap-[0.5em]">
+              <span className={fieldLabel}>{name}</span>
+              <span className={cn(field, "border border-line-strong")}>
+                <span className={fieldText}>{value}</span>
+              </span>
+            </span>
+          ))}
+        </div>
+        <span
+          data-lf="pay"
+          className={cn(
+            "flex h-[2.6em] items-center justify-center gap-[0.55em] rounded-[0.6em] transition-[background-color] duration-150",
+            s.press === "pay" ? "bg-black" : "bg-ink",
+          )}
+        >
+          {s.paying && (
+            <span className="size-[0.9em] animate-spin-fast rounded-full border-2 border-white/35 border-t-white" />
+          )}
+          <span className="text-[0.76em] leading-none font-medium text-white">
+            {s.paying ? "Processing…" : "Pay $49.00"}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Toast() {
+  return (
+    <div className="absolute right-[1.4em] bottom-[1.4em] z-4 flex animate-toast items-center gap-[0.75em] rounded-[0.8em] border border-line bg-white py-[0.85em] pr-[1.1em] pl-[0.9em] shadow-[0_1em_2.4em_-1em_rgba(11,18,21,0.38)]">
+      <span className="inline-flex size-[1.6em] flex-none items-center justify-center rounded-full bg-primary">
+        <svg
+          width="0.9em"
+          height="0.9em"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      </span>
+      <span className="flex flex-col gap-[0.35em]">
+        <span className="text-[0.76em] leading-none font-semibold">Payment confirmed</span>
+        <span className="text-[0.66em] leading-none text-subtle">
+          Webhook processed · Pro is active
+        </span>
+      </span>
+    </div>
+  );
+}
+
+// The scripted pointer: it glides between buttons, presses in on click and ripples
+function Cursor({
+  x,
+  y,
+  clicking,
+  pressed,
+}: {
+  x: number;
+  y: number;
+  clicking: boolean;
+  pressed: boolean;
+}) {
+  return (
+    <div
+      style={{ transform: `translate(${Math.round(x)}px, ${Math.round(y)}px)` }}
+      className="pointer-events-none absolute top-0 left-0 z-6 transition-transform duration-950 ease-[cubic-bezier(0.22,1,0.36,1)]"
+    >
+      {clicking && (
+        <span className="absolute top-[-1.3em] left-[-1.3em] size-[2.6em] animate-click rounded-full bg-primary/28" />
+      )}
+      <div
+        className={cn(
+          "relative origin-top-left transition-transform duration-140 ease-[ease]",
+          pressed && "scale-86",
+        )}
+      >
+        <svg
+          width="1.3em"
+          height="1.3em"
+          viewBox="0 0 20 20"
+          className="block drop-shadow-[0_0.12em_0.22em_rgba(11,18,21,0.35)]"
+        >
+          <path
+            d="M3 2.2l13.6 5.7c.8.3.7 1.4-.1 1.6l-5.6 1.5-2.3 5.4c-.3.8-1.4.7-1.6-.1L2.2 3.1c-.2-.6.3-1.1.8-.9z"
+            fill="var(--color-primary)"
+            stroke="#FFFFFF"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span className="absolute top-[1.15em] left-[1.15em] inline-flex h-[1.55em] items-center rounded-full bg-primary px-[0.6em] whitespace-nowrap shadow-[0_0.35em_0.9em_-0.35em_rgba(11,18,21,0.45)]">
+          <span className="text-[0.64em] leading-none font-semibold text-white">Owner</span>
+        </span>
       </div>
     </div>
   );

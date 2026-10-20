@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
+import { REQUEST_VIEW, RESPONSE_VIEW } from "./developerSnippets";
+import GlowFrame from "./GlowFrame";
+import { reveal } from "./ui";
 
 // The Developers section: response codes on the left pick the response shown in the code
 // window; the window has cURL / Node.js / Python tabs and copies a runnable request
@@ -15,13 +19,63 @@ const REQUEST: Record<Lang, string> = {
   node: `const res = await fetch("${API}", {\n  method: "POST",\n  headers: { "x-api-key": process.env.LEDGERFLOW_KEY, "Content-Type": "application/json" },\n  body: JSON.stringify({ metric: "documents_processed", quantity: 25, idempotencyKey: "job-8831-batch-2" }),\n});`,
   py: `import os, requests\n\nres = requests.post(\n    "${API}",\n    headers={"x-api-key": os.environ["LEDGERFLOW_KEY"]},\n    json={"metric": "documents_processed", "quantity": 25, "idempotencyKey": "job-8831-batch-2"},\n)`,
 };
-const STATUS: Record<Resp, [string, string, string]> = {
-  ok: ["202 Accepted", "#5FD3B5", "rgba(95,211,181,0.14)"],
-  dup: ["202 Accepted · duplicate", "#5FD3B5", "rgba(95,211,181,0.14)"],
-  limit: ["429 Too Many Requests", "#F2C66D", "rgba(242,198,109,0.14)"],
-  key: ["401 Unauthorized", "#F49AA9", "rgba(244,154,169,0.14)"],
-};
-const TAB_X: Record<Lang, number> = { curl: 0, node: 76, py: 152 };
+
+const LANGS: { key: Lang; label: string }[] = [
+  { key: "curl", label: "cURL" },
+  { key: "node", label: "Node.js" },
+  { key: "py", label: "Python" },
+];
+
+const RESPONSES: {
+  key: Resp;
+  code: string;
+  codeClass: string;
+  title: string;
+  text: string;
+  status: { label: string; className: string };
+}[] = [
+  {
+    key: "ok",
+    code: "202",
+    codeClass: "bg-primary/10 text-brand-deep",
+    title: "Accepted",
+    text: "Recorded, with the period’s units and the plan’s included units",
+    status: { label: "202 Accepted", className: "bg-mint/14 text-mint" },
+  },
+  {
+    key: "dup",
+    code: "202",
+    codeClass: "bg-primary/10 text-brand-deep",
+    title: "Duplicate",
+    text: "Same idempotencyKey: the original event comes back, nothing is counted twice",
+    status: { label: "202 Accepted · duplicate", className: "bg-mint/14 text-mint" },
+  },
+  {
+    key: "limit",
+    code: "429",
+    codeClass: "bg-[#FEF3C7] text-[#8A3F06]",
+    title: "Limit reached",
+    text: "The Free plan’s monthly limit, or more than 100 requests a second per key",
+    status: { label: "429 Too Many Requests", className: "bg-gold/14 text-gold" },
+  },
+  {
+    key: "key",
+    code: "401",
+    codeClass: "bg-[#FDECEF] text-[#A3243A]",
+    title: "Invalid key",
+    text: "Unknown or revoked keys are rejected on the very next request",
+    status: { label: "401 Unauthorized", className: "bg-[#F49AA9]/14 text-[#F49AA9]" },
+  },
+];
+
+const FACTS = [
+  "100 requests / s per key",
+  "Keys stored as hashes",
+  "Reported to Stripe’s meter by a job",
+];
+
+const code =
+  "font-mono text-[12.5px] leading-[1.75] text-code whitespace-pre-wrap wrap-anywhere motion-safe:animate-swap";
 
 export default function Developers() {
   const [lang, setLang] = useState<Lang>("curl");
@@ -30,153 +84,66 @@ export default function Developers() {
   const copyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(copyTimer.current), []);
 
-  const copyReq = () => {
+  const copyRequest = () => {
     navigator.clipboard?.writeText(REQUEST[lang]).catch(() => {});
     setCopied(true);
     clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => setCopied(false), 1600);
   };
-
-  const pressed = (on: boolean): "true" | "false" => (on ? "true" : "false");
-  const lang_curl = lang === "curl";
-  const lang_node = lang === "node";
-  const lang_py = lang === "py";
-  const t_curl = pressed(lang_curl);
-  const t_node = pressed(lang_node);
-  const t_py = pressed(lang_py);
-  const tc_curl = lang_curl ? "#FFFFFF" : "#8FA19C";
-  const tc_node = lang_node ? "#FFFFFF" : "#8FA19C";
-  const tc_py = lang_py ? "#FFFFFF" : "#8FA19C";
-  const pick_curl = () => setLang("curl");
-  const pick_node = () => setLang("node");
-  const pick_py = () => setLang("py");
-  const resp_ok = resp === "ok";
-  const resp_dup = resp === "dup";
-  const resp_limit = resp === "limit";
-  const resp_key = resp === "key";
-  const p_ok = pressed(resp_ok);
-  const p_dup = pressed(resp_dup);
-  const p_limit = pressed(resp_limit);
-  const p_key = pressed(resp_key);
-  const pick_ok = () => setResp("ok");
-  const pick_dup = () => setResp("dup");
-  const pick_limit = () => setResp("limit");
-  const pick_key = () => setResp("key");
-  const tabX = TAB_X[lang];
-  const [stText, stColor, stBg] = STATUS[resp];
-  const copyLabel = copied ? "Copied" : "Copy";
-  const copyIcon = copied ? "M20 6L9 17l-5-5" : "M9 9h10v10H9zM5 15V5h10";
+  const status = RESPONSES.find((r) => r.key === resp)!.status;
 
   return (
-    <>
-      <section
-        id="developers"
-        style={{
-          background: "#F7F9F8",
-          borderTop: "1px solid #E8EDEB",
-          borderBottom: "1px solid #E8EDEB",
-        }}
-      >
-        <div
-          className="dev-grid"
-          style={{ maxWidth: "1200px", margin: "0 auto", padding: "96px 24px" }}
-        >
-          <div
-            className="rv"
-            style={{ minWidth: "0", display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <p
-              style={{
-                margin: "0",
-                fontSize: "14px",
-                fontWeight: "600",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "var(--lf-accent)",
-              }}
-            >
-              Developers
-            </p>
-            <h2
-              style={{
-                margin: "0",
-                fontSize: "clamp(28px, 3vw, 40px)",
-                lineHeight: "1.12",
-                letterSpacing: "-0.025em",
-                fontWeight: "650",
-              }}
-            >
-              One request per event. Safe to retry.
-            </h2>
-            <p style={{ margin: "0", fontSize: "17px", lineHeight: "1.6", color: "#46535A" }}>
-              Send the same{" "}
-              <code
-                style={{
-                  fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                  fontSize: "15px",
-                  background: "#FFFFFF",
-                  border: "1px solid #E3E8E6",
-                  borderRadius: "6px",
-                  padding: "1px 6px",
-                }}
-              >
-                idempotencyKey
-              </code>{" "}
-              twice and you get the original event back. Nothing is counted twice.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "6px" }}>
-              <span
-                style={{
-                  fontSize: "12.5px",
-                  fontWeight: "600",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  color: "#5B676E",
-                }}
-              >
-                Responses · pick one to preview
-              </span>
+    <section id="developers" className="border-y border-divider bg-surface">
+      <div className="mx-auto grid max-w-300 grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-14 px-6 py-24 max-[960px]:grid-cols-1 max-[960px]:gap-10">
+        <div className={cn(reveal, "flex min-w-0 flex-col gap-4")}>
+          <p className="text-[14px] font-semibold tracking-[0.08em] text-primary uppercase">
+            Developers
+          </p>
+          <h2 className="text-[clamp(28px,3vw,40px)] leading-[1.12] font-[650] tracking-tight">
+            One request per event. Safe to retry.
+          </h2>
+          <p className="text-[17px] leading-[1.6] text-body">
+            Send the same{" "}
+            <code className="rounded-[6px] border border-line bg-white px-1.5 py-px font-mono text-[15px]">
+              idempotencyKey
+            </code>{" "}
+            twice and you get the original event back. Nothing is counted twice.
+          </p>
+          <div className="mt-1.5 flex flex-col gap-2">
+            <span className="text-[12.5px] font-semibold tracking-[0.06em] text-subtle uppercase">
+              Responses · pick one to preview
+            </span>
+            {RESPONSES.map((r) => (
               <button
+                key={r.key}
                 type="button"
-                className="dev-row"
-                onClick={pick_ok}
-                aria-pressed={p_ok}
-                data-on={p_ok}
+                onClick={() => setResp(r.key)}
+                aria-pressed={resp === r.key}
+                data-on={resp === r.key}
+                className={cn(
+                  "group grid w-full cursor-pointer grid-cols-[52px_minmax(0,1fr)_16px] items-center gap-3.5 rounded-[14px] border border-line bg-white px-3.5 py-3 text-[#9aa8a4]",
+                  "transition-[border-color,box-shadow,translate,color] duration-250 ease-[cubic-bezier(0.2,0.7,0.2,1)]",
+                  "hover:border-[color-mix(in_srgb,var(--color-primary)_40%,var(--color-line))] hover:shadow-[0_10px_24px_-18px_color-mix(in_srgb,var(--color-primary)_80%,transparent)] motion-safe:hover:translate-x-0.75",
+                  "data-[on=true]:border-primary data-[on=true]:text-primary data-[on=true]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-primary)_14%,transparent),0_12px_26px_-18px_color-mix(in_srgb,var(--color-primary)_90%,transparent)]",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+                )}
               >
                 <span
-                  className="dev-code"
-                  style={{
-                    color: "#0A6152",
-                    background: "color-mix(in srgb, var(--lf-accent) 10%, #FFFFFF)",
-                  }}
+                  className={cn(
+                    "inline-flex h-7.5 items-center justify-center rounded-[8px] font-mono text-[13.5px] font-semibold",
+                    r.codeClass,
+                  )}
                 >
-                  202
+                  {r.code}
                 </span>
-                <span
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    minWidth: "0",
-                    textAlign: "left",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "15px",
-                      fontWeight: "600",
-                      lineHeight: "1.2",
-                      color: "#0B1215",
-                    }}
-                  >
-                    Accepted
+                <span className="flex min-w-0 flex-col gap-1 text-left">
+                  <span className="text-[15px] leading-[1.2] font-semibold text-ink">
+                    {r.title}
                   </span>
-                  <span style={{ fontSize: "13.5px", lineHeight: "1.45", color: "#46535A" }}>
-                    Recorded, with the period’s units and the plan’s included units
-                  </span>
+                  <span className="text-[13.5px] leading-[1.45] text-body">{r.text}</span>
                 </span>
                 <svg
-                  className="dev-chev"
+                  className="transition-transform duration-250 ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-safe:group-hover:translate-x-0.75 motion-safe:group-data-[on=true]:translate-x-0.75"
                   width="16"
                   height="16"
                   viewBox="0 0 24 24"
@@ -185,602 +152,113 @@ export default function Developers() {
                   strokeWidth="2.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  aria-hidden="true"
+                  aria-hidden
                 >
                   <path d="M9 6l6 6-6 6" />
                 </svg>
               </button>
-              <button
-                type="button"
-                className="dev-row"
-                onClick={pick_dup}
-                aria-pressed={p_dup}
-                data-on={p_dup}
-              >
-                <span
-                  className="dev-code"
-                  style={{
-                    color: "#0A6152",
-                    background: "color-mix(in srgb, var(--lf-accent) 10%, #FFFFFF)",
-                  }}
-                >
-                  202
-                </span>
-                <span
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    minWidth: "0",
-                    textAlign: "left",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "15px",
-                      fontWeight: "600",
-                      lineHeight: "1.2",
-                      color: "#0B1215",
-                    }}
-                  >
-                    Duplicate
-                  </span>
-                  <span style={{ fontSize: "13.5px", lineHeight: "1.45", color: "#46535A" }}>
-                    Same idempotencyKey: the original event comes back, nothing is counted twice
-                  </span>
-                </span>
-                <svg
-                  className="dev-chev"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="dev-row"
-                onClick={pick_limit}
-                aria-pressed={p_limit}
-                data-on={p_limit}
-              >
-                <span className="dev-code" style={{ color: "#8A3F06", background: "#FEF3C7" }}>
-                  429
-                </span>
-                <span
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    minWidth: "0",
-                    textAlign: "left",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "15px",
-                      fontWeight: "600",
-                      lineHeight: "1.2",
-                      color: "#0B1215",
-                    }}
-                  >
-                    Limit reached
-                  </span>
-                  <span style={{ fontSize: "13.5px", lineHeight: "1.45", color: "#46535A" }}>
-                    The Free plan’s monthly limit, or more than 100 requests a second per key
-                  </span>
-                </span>
-                <svg
-                  className="dev-chev"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="dev-row"
-                onClick={pick_key}
-                aria-pressed={p_key}
-                data-on={p_key}
-              >
-                <span className="dev-code" style={{ color: "#A3243A", background: "#FDECEF" }}>
-                  401
-                </span>
-                <span
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "4px",
-                    minWidth: "0",
-                    textAlign: "left",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "15px",
-                      fontWeight: "600",
-                      lineHeight: "1.2",
-                      color: "#0B1215",
-                    }}
-                  >
-                    Invalid key
-                  </span>
-                  <span style={{ fontSize: "13.5px", lineHeight: "1.45", color: "#46535A" }}>
-                    Unknown or revoked keys are rejected on the very next request
-                  </span>
-                </span>
-                <svg
-                  className="dev-chev"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </button>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
-              <span className="dev-fact">100 requests / s per key</span>
-              <span className="dev-fact">Keys stored as hashes</span>
-              <span className="dev-fact">Reported to Stripe’s meter by a job</span>
-            </div>
+            ))}
           </div>
-          <div className="rv dev-win-wrap" style={{ minWidth: "0" }}>
-            <div className="glow" style={{ borderRadius: "16px", padding: "1px" }}>
-              <span className="glow-ring" aria-hidden="true">
-                <span />
-              </span>
-              <div
-                style={{
-                  borderRadius: "16px",
-                  overflow: "hidden",
-                  background: "#0B1215",
-                  border: "1px solid #1C2A2F",
-                  boxShadow: "0 30px 70px -30px rgba(11,18,21,0.55)",
-                }}
+          <div className="mt-1 flex flex-wrap gap-2">
+            {FACTS.map((f) => (
+              <span
+                key={f}
+                className="inline-flex h-7.5 items-center gap-1.75 rounded-full border border-line bg-white px-3 text-[13px] text-ink-soft"
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    padding: "10px 12px 10px 16px",
-                    borderBottom: "1px solid #1C2A2F",
-                    background: "#0F181B",
-                  }}
-                >
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: "14px", minWidth: "0" }}
-                  >
-                    <span style={{ display: "inline-flex", gap: "6px" }} aria-hidden="true">
-                      <i className="dev-dot" />
-                      <i className="dev-dot" />
-                      <i className="dev-dot" />
-                    </span>
-                    <div className="dev-tabs" role="group" aria-label="Language">
-                      <span
-                        className="dev-tab-thumb"
-                        aria-hidden="true"
-                        style={{ transform: `translateX(${tabX}px)` }}
-                      />
-                      <button
-                        type="button"
-                        onClick={pick_curl}
-                        aria-pressed={t_curl}
-                        style={{ color: tc_curl }}
-                      >
-                        cURL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={pick_node}
-                        aria-pressed={t_node}
-                        style={{ color: tc_node }}
-                      >
-                        Node.js
-                      </button>
-                      <button
-                        type="button"
-                        onClick={pick_py}
-                        aria-pressed={t_py}
-                        style={{ color: tc_py }}
-                      >
-                        Python
-                      </button>
-                    </div>
-                  </div>
-                  <button type="button" className="dev-copy" onClick={copyReq}>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d={copyIcon} />
-                    </svg>
-                    {copyLabel}
-                  </button>
-                </div>
-                <div style={{ padding: "20px 22px", minHeight: "300px", boxSizing: "border-box" }}>
-                  {lang_curl && (
-                    <>
-                      <pre
-                        className="dev-swap"
-                        style={{
-                          margin: "0",
-                          boxSizing: "border-box",
-                          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                          fontSize: "12.5px",
-                          lineHeight: "1.75",
-                          color: "#D7E2DF",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        <span style={{ color: "#5FD3B5" }}>{"curl"}</span>
-                        {" https://ledgerflow-api-service.vercel.app/api/v1/usage "}
-                        <span style={{ color: "#8FA19C" }}>{"\\"}</span>
-                        {"\n  "}
-                        <span style={{ color: "#8FA19C" }}>{"-H"}</span>{" "}
-                        <span style={{ color: "#F2C66D" }}>{'"x-api-key: $LEDGERFLOW_KEY"'}</span>{" "}
-                        <span style={{ color: "#8FA19C" }}>{"\\"}</span>
-                        {"\n  "}
-                        <span style={{ color: "#8FA19C" }}>{"-H"}</span>{" "}
-                        <span style={{ color: "#F2C66D" }}>
-                          {'"Content-Type: application/json"'}
-                        </span>{" "}
-                        <span style={{ color: "#8FA19C" }}>{"\\"}</span>
-                        {"\n  "}
-                        <span style={{ color: "#8FA19C" }}>{"-d"}</span>{" "}
-                        <span style={{ color: "#F2C66D" }}>{"'{"}</span>
-                        {"\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"metric"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"documents_processed"'}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"quantity"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"25"}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"idempotencyKey"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"job-8831-batch-2"'}</span>
-                        {"\n  "}
-                        <span style={{ color: "#F2C66D" }}>{"}'"}</span>
-                      </pre>
-                    </>
-                  )}
-                  {lang_node && (
-                    <>
-                      <pre
-                        className="dev-swap"
-                        style={{
-                          margin: "0",
-                          boxSizing: "border-box",
-                          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                          fontSize: "12.5px",
-                          lineHeight: "1.75",
-                          color: "#D7E2DF",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        <span style={{ color: "#5FD3B5" }}>{"const"}</span>
-                        {" res = "}
-                        <span style={{ color: "#5FD3B5" }}>{"await"}</span>
-                        {" fetch(\n  "}
-                        <span style={{ color: "#F2C66D" }}>
-                          {'"https://ledgerflow-api-service.vercel.app/api/v1/usage"'}
-                        </span>
-                        {",\n  {\n    method: "}
-                        <span style={{ color: "#F2C66D" }}>{'"POST"'}</span>
-                        {",\n    headers: {\n      "}
-                        <span style={{ color: "#F2C66D" }}>{'"x-api-key"'}</span>
-                        {": process.env.LEDGERFLOW_KEY,\n      "}
-                        <span style={{ color: "#F2C66D" }}>{'"Content-Type"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"application/json"'}</span>
-                        {",\n    },\n    body: JSON.stringify({\n      metric: "}
-                        <span style={{ color: "#F2C66D" }}>{'"documents_processed"'}</span>
-                        {",\n      quantity: "}
-                        <span style={{ color: "#F2C66D" }}>{"25"}</span>
-                        {",\n      idempotencyKey: "}
-                        <span style={{ color: "#F2C66D" }}>{'"job-8831-batch-2"'}</span>
-                        {",\n    }),\n  },\n);"}
-                      </pre>
-                    </>
-                  )}
-                  {lang_py && (
-                    <>
-                      <pre
-                        className="dev-swap"
-                        style={{
-                          margin: "0",
-                          boxSizing: "border-box",
-                          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                          fontSize: "12.5px",
-                          lineHeight: "1.75",
-                          color: "#D7E2DF",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        <span style={{ color: "#5FD3B5" }}>{"import"}</span>
-                        {" os, requests\n\nres = requests.post(\n    "}
-                        <span style={{ color: "#F2C66D" }}>
-                          {'"https://ledgerflow-api-service.vercel.app/api/v1/usage"'}
-                        </span>
-                        {",\n    headers={"}
-                        <span style={{ color: "#F2C66D" }}>{'"x-api-key"'}</span>
-                        {": os.environ["}
-                        <span style={{ color: "#F2C66D" }}>{'"LEDGERFLOW_KEY"'}</span>
-                        {"]},\n    json={\n        "}
-                        <span style={{ color: "#F2C66D" }}>{'"metric"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"documents_processed"'}</span>
-                        {",\n        "}
-                        <span style={{ color: "#F2C66D" }}>{'"quantity"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"25"}</span>
-                        {",\n        "}
-                        <span style={{ color: "#F2C66D" }}>{'"idempotencyKey"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"job-8831-batch-2"'}</span>
-                        {",\n    },\n)"}
-                      </pre>
-                    </>
-                  )}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    padding: "10px 16px",
-                    borderTop: "1px solid #1C2A2F",
-                    borderBottom: "1px solid #1C2A2F",
-                    background: "#0F181B",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                      fontSize: "11.5px",
-                      letterSpacing: "0.06em",
-                      color: "#8FA19C",
-                    }}
-                  >
-                    RESPONSE
-                  </span>
-                  <span className="dev-status" style={{ color: stColor, background: stBg }}>
-                    <span
-                      style={{
-                        width: "6px",
-                        height: "6px",
-                        borderRadius: "999px",
-                        background: "currentColor",
-                      }}
-                    />
-                    {stText}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    padding: "18px 22px 20px",
-                    minHeight: "230px",
-                    boxSizing: "border-box",
-                    background: "#0A1013",
-                  }}
-                >
-                  {resp_ok && (
-                    <>
-                      <pre
-                        className="dev-swap"
-                        style={{
-                          margin: "0",
-                          boxSizing: "border-box",
-                          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                          fontSize: "12.5px",
-                          lineHeight: "1.75",
-                          color: "#D7E2DF",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {"{\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"success"'}</span>
-                        {": "}
-                        <span style={{ color: "#C3B4F4" }}>{"true"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"statusCode"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"202"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"message"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"Usage recorded"'}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"data"'}</span>
-                        {": {\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"eventId"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"184467"'}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"duplicate"'}</span>
-                        {": "}
-                        <span style={{ color: "#C3B4F4" }}>{"false"}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"periodUnits"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"742"}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"includedUnits"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"1000"}</span>
-                        {"\n  }\n}"}
-                      </pre>
-                    </>
-                  )}
-                  {resp_dup && (
-                    <>
-                      <pre
-                        className="dev-swap"
-                        style={{
-                          margin: "0",
-                          boxSizing: "border-box",
-                          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                          fontSize: "12.5px",
-                          lineHeight: "1.75",
-                          color: "#D7E2DF",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {"{\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"success"'}</span>
-                        {": "}
-                        <span style={{ color: "#C3B4F4" }}>{"true"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"statusCode"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"202"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"message"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"Already recorded"'}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"data"'}</span>
-                        {": {\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"eventId"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"184467"'}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"duplicate"'}</span>
-                        {": "}
-                        <span style={{ color: "#C3B4F4" }}>{"true"}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"periodUnits"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"742"}</span>
-                        {",\n    "}
-                        <span style={{ color: "#9DB8F5" }}>{'"includedUnits"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"1000"}</span>
-                        {"\n  }\n}"}
-                      </pre>
-                    </>
-                  )}
-                  {resp_limit && (
-                    <>
-                      <pre
-                        className="dev-swap"
-                        style={{
-                          margin: "0",
-                          boxSizing: "border-box",
-                          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                          fontSize: "12.5px",
-                          lineHeight: "1.75",
-                          color: "#D7E2DF",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {"{\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"success"'}</span>
-                        {": "}
-                        <span style={{ color: "#C3B4F4" }}>{"false"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"statusCode"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"429"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"message"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>
-                          {'"Monthly usage limit of 1,000 units reached. Upgrade to continue."'}
-                        </span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"errorCode"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"PLAN_LIMIT_USAGE"'}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"errorDetails"'}</span>
-                        {": []\n}"}
-                      </pre>
-                    </>
-                  )}
-                  {resp_key && (
-                    <>
-                      <pre
-                        className="dev-swap"
-                        style={{
-                          margin: "0",
-                          boxSizing: "border-box",
-                          fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
-                          fontSize: "12.5px",
-                          lineHeight: "1.75",
-                          color: "#D7E2DF",
-                          whiteSpace: "pre-wrap",
-                          overflowWrap: "anywhere",
-                        }}
-                      >
-                        {"{\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"success"'}</span>
-                        {": "}
-                        <span style={{ color: "#C3B4F4" }}>{"false"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"statusCode"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{"401"}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"message"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"Invalid or revoked API key"'}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"errorCode"'}</span>
-                        {": "}
-                        <span style={{ color: "#F2C66D" }}>{'"INVALID_API_KEY"'}</span>
-                        {",\n  "}
-                        <span style={{ color: "#9DB8F5" }}>{'"errorDetails"'}</span>
-                        {": []\n}"}
-                      </pre>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+                <span aria-hidden className="size-1.5 rounded-full bg-primary" />
+                {f}
+              </span>
+            ))}
           </div>
         </div>
-      </section>
-    </>
+
+        <div className={cn(reveal, "min-w-0")}>
+          <GlowFrame>
+            <div className="overflow-hidden rounded-[16px] border border-night-line bg-ink shadow-[0_30px_70px_-30px_rgba(11,18,21,0.55)]">
+              <div className="flex items-center justify-between gap-3 border-b border-night-line bg-[#0F181B] py-2.5 pr-3 pl-4">
+                <div className="flex min-w-0 items-center gap-3.5">
+                  <span aria-hidden className="inline-flex gap-1.5">
+                    {[0, 1, 2].map((i) => (
+                      <i key={i} className="size-2.5 rounded-full bg-[#253338]" />
+                    ))}
+                  </span>
+                  <div
+                    role="group"
+                    aria-label="Language"
+                    className="relative inline-grid grid-cols-[repeat(3,76px)] rounded-[9px] bg-[#152125] p-0.75"
+                  >
+                    <span
+                      aria-hidden
+                      style={{
+                        transform: `translateX(${LANGS.findIndex((l) => l.key === lang) * 76}px)`,
+                      }}
+                      className="absolute top-0.75 left-0.75 h-7 w-19 rounded-[7px] bg-[#24343a] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-transform duration-350 ease-[cubic-bezier(0.3,1.25,0.4,1)]"
+                    />
+                    {LANGS.map((l) => (
+                      <button
+                        key={l.key}
+                        type="button"
+                        onClick={() => setLang(l.key)}
+                        aria-pressed={lang === l.key}
+                        className={cn(
+                          "relative z-10 h-7 cursor-pointer rounded-[7px] font-mono text-[12px] transition-colors duration-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mint",
+                          lang === l.key ? "text-white" : "text-sage",
+                        )}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyRequest}
+                  className="inline-flex h-7.5 cursor-pointer items-center gap-1.5 rounded-[8px] border border-[#24343a] px-2.75 text-[12.5px] text-fog transition-colors duration-200 hover:border-[#2f4248] hover:bg-[#152125] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mint"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d={copied ? "M20 6L9 17l-5-5" : "M9 9h10v10H9zM5 15V5h10"} />
+                  </svg>
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <div className="min-h-75 px-5.5 py-5">
+                <pre key={lang} className={code}>
+                  {REQUEST_VIEW[lang]}
+                </pre>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-y border-night-line bg-[#0F181B] px-4 py-2.5">
+                <span className="font-mono text-[11.5px] tracking-[0.06em] text-sage">
+                  RESPONSE
+                </span>
+                <span
+                  className={cn(
+                    "inline-flex h-6 items-center gap-1.75 rounded-full px-2.5 font-mono text-[11.5px] font-semibold transition-colors duration-250",
+                    status.className,
+                  )}
+                >
+                  <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                  {status.label}
+                </span>
+              </div>
+              <div className="min-h-57.5 bg-[#0A1013] px-5.5 pt-4.5 pb-5">
+                <pre key={resp} className={code}>
+                  {RESPONSE_VIEW[resp]}
+                </pre>
+              </div>
+            </div>
+          </GlowFrame>
+        </div>
+      </div>
+    </section>
   );
 }

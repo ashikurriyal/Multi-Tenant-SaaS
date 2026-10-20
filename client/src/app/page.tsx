@@ -12,7 +12,6 @@ import Navbar from "@/components/landing/Navbar";
 import Platform from "@/components/landing/Platform";
 import Pricing from "@/components/landing/Pricing";
 import Proof from "@/components/landing/Proof";
-import "@/components/landing/landing.css";
 
 // Validated for instant navigation (see next.config.ts)
 export const instant = true;
@@ -25,7 +24,10 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <div className="lf motion">
+    <div
+      data-landing
+      className="min-w-0 bg-white font-sans text-ink antialiased [&_section[id]]:scroll-mt-24"
+    >
       <Navbar />
       <Hero />
       <HowItWorks />
