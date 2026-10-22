@@ -6,7 +6,7 @@
 
 **Live demo:** [ledgerflow-web-portal.vercel.app](https://ledgerflow-web-portal.vercel.app) · a landing page with a scripted product walkthrough · one-click demo accounts on the login page · payments in Stripe test mode
 
-![LedgerFlow landing page: headline, live demo buttons and the animated product walkthrough](docs/screenshots/landing.png)
+![LedgerFlow landing page: headline, live demo buttons and the product walkthrough, where a Free workspace has just hit its usage limit](docs/screenshots/landing.png)
 
 ## Try it
 
